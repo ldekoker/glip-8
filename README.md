@@ -1,24 +1,46 @@
-# chip_8_gleam
+# CHIP-8
 
-[![Package Version](https://img.shields.io/hexpm/v/chip_8_gleam)](https://hex.pm/packages/chip_8_gleam)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/chip_8_gleam/)
+CHIP-8 is an interpreted programming language, designed in the 1970s to be to be run across many different microcomputers rather than any one particular architecture.
 
+This is my idiomatic implementation of the language, targeting both JavaScript & Erlang compile targets.
+
+Sources:
+- [Chip-8 Technical Reference](https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Technical-Reference)
+
+
+# To Run Locally (In Progress)
 ```sh
-gleam add chip_8_gleam@1
-```
-```gleam
-import chip_8_gleam
-
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
+gleam run
 ```
 
-Further documentation can be found at <https://hexdocs.pm/chip_8_gleam>.
+# Architecture (Planned)
+```mermaid
+graph TB
+    subgraph internal
+        cpu[CPU]
+        mem[Memory]
+        dym[Display Memory]
+        dtm[Delay Timer]
+        stm[Sound Timer]
+    end
+    subgraph JavaScript
+        win[Window]
+        bky[Keyboard]
+        bsr[Speakers]
 
-## Development
+        dym --> win
+        bky --> cpu
+        stm --> bsr
+    end
 
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
+
+    subgraph Erlang
+        trm[Terminal]
+        tky[Keyboard]
+        tsr[Speakers]
+
+        dym --> trm
+        sky --> cpu
+        st --> tsr
+    end
 ```
