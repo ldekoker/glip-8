@@ -1,6 +1,7 @@
 import gleam/int
+import gleam/option
 import gleam/result
-import util
+import utils
 
 pub opaque type Instruction {
   ExecuteMachineLanguageSubroutineAtAddress(nnn: Int)
@@ -40,11 +41,16 @@ pub opaque type Instruction {
   LoadMemory(vx: Int)
 }
 
-pub fn decode_instruction(value: Int) {
-  use category <- result.try(util.get_hex_digit(value, 0))
-  use vx <- result.try(util.get_hex_digit(value, 1))
-  use vy <- result.try(util.get_hex_digit(value, 2))
-  use n <- result.try(util.get_hex_digit(value, 3))
+pub opaque type InstructionError {
+  InvalidOpcode
+  OpcodeSplitError
+}
+
+pub fn decode_instruction(value: Int) -> Result(Instruction, InstructionError) {
+  let split_opcode =
+    utils.split_16_bit_to_hexadecimal(value)
+    |> option.to_result(OpcodeSplitError)
+  use #(category, vx, vy, n) <- result.try(split_opcode)
   let nn = int.bitwise_shift_left(vy, 4) + n
   let nnn = int.bitwise_shift_left(vx, 8) + nn
 
@@ -74,17 +80,34 @@ pub fn decode_instruction(value: Int) {
         6 -> Ok(StoreVYinVXBitShiftedRight(vy:, vx:))
         7 -> Ok(SetVXtoVYminusVXBorrow(vx:, vy:))
         0xE -> Ok(StoreVYinVXBitShiftedLeft(vy:, vx:))
-        // err
-        _ -> todo
+        _ -> Error(InvalidOpcode)
       }
     9 -> Ok(SkipNextIfVXNotEqualsVY(vx:, vy:))
     0xA -> Ok(StoreAddressInI(nnn:))
     0xB -> Ok(JumpToNNNPlusV0(nnn:))
     0xC -> Ok(SetVXToRand(vx:, mask: nn))
     0xD -> Ok(Draw(vx:, vy:, n:))
-    0xE -> todo
-    0xF -> todo
-    //err
-    _ -> todo
+    0xE -> {
+      case nn {
+        0x9E -> Ok(SkipNextIfKeyPressed(vx:))
+        0xA1 -> Ok(SkipNextIfKeyNotPressed(vx:))
+        _ -> Error(InvalidOpcode)
+      }
+    }
+    0xF -> {
+      case nn {
+        0x07 -> Ok(StoreDelayTimerInVX(vx:))
+        0x0A -> Ok(OnKeypressStoreInVX(vx:))
+        0x15 -> Ok(SetDelayTimerToVX(vx:))
+        0x18 -> Ok(SetSoundTimerToVX(vx:))
+        0x1E -> Ok(AddVXtoI(vx:))
+        0x29 -> Ok(SetItoSpriteAddress(vx:))
+        0x33 -> Ok(StoreDecimalisedVXInIs(vx:))
+        0x55 -> Ok(StoreMemory(vx:))
+        0x65 -> Ok(LoadMemory(vx:))
+        _ -> Error(InvalidOpcode)
+      }
+    }
+    _ -> Error(InvalidOpcode)
   }
 }

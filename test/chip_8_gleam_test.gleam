@@ -1,5 +1,4 @@
-import gleam/int
-import gleam/result
+import gleam/option.{Some}
 import gleeunit
 import utils
 
@@ -8,15 +7,24 @@ pub fn main() -> Nil {
 }
 
 // gleeunit test functions end in `_test`
-pub fn extract_hex_digit_test() {
-  use a <- result.try(utils.get_hex_digit(0xAF12, 0))
-  use f <- result.try(utils.get_hex_digit(0xAF12, 1))
-  use one <- result.try(utils.get_hex_digit(0xAF12, 2))
-  use two <- result.try(utils.get_hex_digit(0xAF12, 3))
+pub fn split_hex_digit_test_constructor(
+  input: Int,
+  correct: #(Int, Int, Int, Int),
+) -> Bool {
+  let result = utils.split_16_bit_to_hexadecimal(input)
+  case result {
+    Some(#(a, b, c, d)) -> {
+      #(a, b, c, d) == correct
+    }
+    _ -> {
+      False
+    }
+  }
+}
 
-  assert int.to_base16(a) == "A"
-  assert int.to_base16(f) == "F"
-  assert int.to_base16(one) == "1"
-  assert int.to_base16(two) == "2"
-  Ok(Nil)
+pub fn split_hex_digit_test() {
+  assert split_hex_digit_test_constructor(0xABCD, #(0xA, 0xB, 0xC, 0xD))
+  assert split_hex_digit_test_constructor(0x0000, #(0x0, 0x0, 0x0, 0x0))
+  assert split_hex_digit_test_constructor(0xABCD1, #(0xB, 0xC, 0xD, 0x1))
+  assert split_hex_digit_test_constructor(0xF0000, #(0x0, 0x0, 0x0, 0x0))
 }

@@ -1,24 +1,8 @@
-import gleam/int
+import gleam/option.{type Option, None, Some}
 
-pub type GetDigitError {
-  InvalidIndex
-  InvalidNumber
-}
-
-pub fn get_hex_digit(num: Int, idx: Int) -> Result(Int, GetDigitError) {
-  case num, idx {
-    _, idx if idx > 3 -> Error(InvalidIndex)
-    num, _ if num > 0xFFFF -> Error(InvalidNumber)
-    num, idx -> {
-      let mask = 0b1111 |> int.bitwise_shift_left(12 - { 4 * idx })
-
-      // todo
-      let out =
-        num
-        |> int.bitwise_and(mask)
-        |> int.bitwise_shift_right({ 3 - idx } * 4)
-
-      Ok(out)
-    }
+pub fn split_16_bit_to_hexadecimal(num: Int) -> Option(#(Int, Int, Int, Int)) {
+  case <<num:16-unit(1)>> {
+    <<a:4, b:4, c:4, d:4>> -> Some(#(a, b, c, d))
+    _ -> None
   }
 }
