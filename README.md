@@ -13,34 +13,37 @@ Sources:
 gleam run
 ```
 
+To test
+```sh
+{ find src/ -type f -name "*.gleam"; find test/ -type f -name "*.gleam"; } | entr -s "gleam test"
+```
+
 # Architecture (Planned)
+The CHIP-8 is a pure data structure, which either the JS or Erlang runtimes hook in to, calling the tick() function at regular intervals and providing details about external state.
+
 ```mermaid
-graph TB
-    subgraph internal
-        cpu[CPU]
-        mem[Memory]
-        dym[Display Memory]
-        dtm[Delay Timer]
-        stm[Sound Timer]
-    end
+graph TD
     subgraph JavaScript
-        win[Window]
-        bky[Keyboard]
-        bsr[Speakers]
-
-        dym --> win
-        bky --> cpu
-        stm --> bsr
+        canvas[gleam/paint]
     end
-
-
     subgraph Erlang
-        trm[Terminal]
-        tky[Keyboard]
-        tsr[Speakers]
-
-        dym --> trm
-        sky --> cpu
-        st --> tsr
+        terminal[Terminal?]
     end
+    subgraph Chip-8
+        cpu[CPU]
+        stim(Sound Timer)
+        tim(Timer)
+        mem(Memory)
+        sbuf(Display Buffer)
+        dreg(Data Registers)
+
+        cpu --> stim
+        cpu --> tim
+        cpu --> mem
+        cpu --> dreg
+        cpu --> sbuf
+    end
+
+    canvas --> cpu
+    terminal --> cpu
 ```
