@@ -7,22 +7,22 @@ pub opaque type DataRegisters {
 
 pub fn new() -> DataRegisters {
   DataRegisters(<<
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
-    0:8-unit(1),
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
+    0:8,
   >>)
 }
 
