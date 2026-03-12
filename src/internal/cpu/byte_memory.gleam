@@ -1,47 +1,62 @@
 import gleam/result
 import utils
 
-pub opaque type ByteMemory {
-  ByteMemory(memory: BitArray)
+pub opaque type FixedLengthBitArray {
+  FixedLengthBitArray(bit_array: BitArray, bit_length: Int, length: Int)
 }
 
-pub type ByteMemoryError {
+pub type FixedLengthBitArrayError {
   BadAddress(address: Int)
   ValueOverflow(value: Int)
 }
 
-pub fn new(length: Int) -> ByteMemory {
-  ByteMemory(memory: utils.construct_bit_array_of_zeros(length: length, bits: 8))
+pub fn new(length length: Int, bits bit_length: Int) -> FixedLengthBitArray {
+  FixedLengthBitArray(
+    bit_array: utils.construct_bit_array_of_zeros(
+      length: length,
+      bits: bit_length,
+    ),
+    length:,
+    bit_length:,
+  )
 }
 
 pub fn get_value_at_address(
-  memory: ByteMemory,
+  fl_bit_array: FixedLengthBitArray,
   address: Int,
-) -> Result(Int, ByteMemoryError) {
-  let ByteMemory(bytes) = memory
+) -> Result(Int, FixedLengthBitArrayError) {
+  let FixedLengthBitArray(bytes, ..) = fl_bit_array
   bytes
   |> utils.get_bit_array_value_at(address)
   |> result.replace_error(BadAddress(address:))
 }
 
 pub fn set_value_at_address(
-  memory: ByteMemory,
+  fl_bit_array: FixedLengthBitArray,
   address: Int,
   value: Int,
-) -> Result(ByteMemory, ByteMemoryError) {
+) -> Result(FixedLengthBitArray, FixedLengthBitArrayError) {
   case value, value % 256 {
     value, truncated_value if value != truncated_value -> {
       Error(ValueOverflow(value:))
     }
     _, _ -> {
-      let ByteMemory(bytes) = memory
+      let FixedLengthBitArray(bytes, ..) = fl_bit_array
       use new_bytes <- result.try(
         bytes
         |> utils.replace_bit_array_value_at(address, with: value)
         |> result.replace_error(BadAddress(address:)),
       )
 
-      Ok(ByteMemory(new_bytes))
+      Ok(FixedLengthBitArray(
+        new_bytes,
+        length: fl_bit_array.length,
+        bit_length: fl_bit_array.bit_length,
+      ))
     }
   }
+}
+
+pub fn bit_array(fl_bit_array: FixedLengthBitArray) -> BitArray {
+  fl_bit_array.bit_array
 }

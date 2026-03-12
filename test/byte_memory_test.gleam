@@ -3,7 +3,7 @@ import gleam/result
 import internal/cpu/byte_memory
 
 pub fn data_registers_initialise_test() {
-  let data_registers = byte_memory.new(16)
+  let data_registers = byte_memory.new(16, 8)
 
   assert int.range(from: 0, to: 15, with: True, run: fn(so_far, idx) {
     so_far && byte_memory.get_value_at_address(data_registers, idx) == Ok(0)
@@ -11,7 +11,7 @@ pub fn data_registers_initialise_test() {
 }
 
 pub fn data_registers_set_test() {
-  use data_registers <- result.try(set_data_registers(byte_memory.new(16)))
+  use data_registers <- result.try(set_data_registers(byte_memory.new(16, 8)))
 
   assert int.range(from: 0, to: 15, with: True, run: fn(so_far, idx) {
     so_far && byte_memory.get_value_at_address(data_registers, idx) == Ok(idx)
@@ -20,7 +20,7 @@ pub fn data_registers_set_test() {
   Ok(Nil)
 }
 
-fn set_data_registers(d: byte_memory.ByteMemory) {
+fn set_data_registers(d: byte_memory.FixedLengthBitArray) {
   d
   |> byte_memory.set_value_at_address(1, 1)
   |> result.try(byte_memory.set_value_at_address(_, 2, 2))
@@ -41,7 +41,7 @@ fn set_data_registers(d: byte_memory.ByteMemory) {
 
 pub fn address_access_error_test() {
   // Create a ByteArray with 10 elements
-  let memory = byte_memory.new(10)
+  let memory = byte_memory.new(10, 8)
   let address = 11
 
   // Access the 11th element
@@ -54,7 +54,7 @@ pub fn address_access_error_test() {
 
 pub fn address_set_error_test() {
   // Create a ByteArray with 10 elements
-  let memory = byte_memory.new(10)
+  let memory = byte_memory.new(10, 8)
   let address = 11
   let new_value = 1
 
@@ -68,7 +68,7 @@ pub fn address_set_error_test() {
 
 pub fn value_set_overflow_test() {
   // Create a ByteArray with 10 elements
-  let memory = byte_memory.new(10)
+  let memory = byte_memory.new(10, 8)
   let address = 11
   let new_value = 257
 
