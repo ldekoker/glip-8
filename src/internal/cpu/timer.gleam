@@ -2,6 +2,6 @@ pub opaque type Timer {
   Timer(current: Int)
 }
 
-pub fn new(value: Int) -> Timer {
-  Timer(value)
+pub fn new() -> Timer {
+  Timer(0)
 }

@@ -41,15 +41,8 @@ pub opaque type Instruction {
   LoadMemory(vx: Int)
 }
 
-pub opaque type InstructionError {
-  InvalidOpcode
-  OpcodeSplitError
-}
-
-pub fn decode_instruction(value: Int) -> Result(Instruction, InstructionError) {
-  let split_opcode =
-    utils.split_16_bit_to_hexadecimal(value)
-    |> option.to_result(OpcodeSplitError)
+pub fn decode_instruction(value: Int) -> Result(Instruction, Nil) {
+  let split_opcode = utils.split_16_bit_to_hexadecimal(value)
   use #(category, vx, vy, n) <- result.try(split_opcode)
   let nn = int.bitwise_shift_left(vy, 4) + n
   let nnn = int.bitwise_shift_left(vx, 8) + nn
