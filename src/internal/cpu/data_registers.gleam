@@ -1,29 +1,13 @@
 import gleam/bit_array as ba
 import gleam/result
+import utils
 
 pub opaque type DataRegisters {
   DataRegisters(values: BitArray)
 }
 
 pub fn new() -> DataRegisters {
-  DataRegisters(<<
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-    0:8,
-  >>)
+  DataRegisters(utils.construct_bit_array_of_zeros(length: 16, bits: 8))
 }
 
 pub fn set_register(

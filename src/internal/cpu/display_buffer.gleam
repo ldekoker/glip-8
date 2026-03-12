@@ -1,44 +1,12 @@
 import gleam/list
+import utils
 
 pub opaque type DisplayBuffer {
   DisplayBuffer(memory: BitArray)
 }
 
 pub fn new() -> DisplayBuffer {
-  DisplayBuffer(<<
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-    0:64,
-  >>)
+  DisplayBuffer(utils.construct_bit_array_of_zeros(length: 32, bits: 64))
 }
 
 /// Transforms a DisplayBuffer into a nested list of Boolean values.
