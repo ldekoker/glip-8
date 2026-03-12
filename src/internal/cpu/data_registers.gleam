@@ -1,5 +1,4 @@
 import gleam/bit_array as ba
-import gleam/option.{type Option, None, Some}
 import gleam/result
 
 pub opaque type DataRegisters {
