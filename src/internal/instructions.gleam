@@ -1,5 +1,4 @@
 import gleam/int
-import gleam/option
 import gleam/result
 import utils
 
@@ -41,9 +40,17 @@ pub opaque type Instruction {
   LoadMemory(vx: Int)
 }
 
-pub fn decode_instruction(value: Int) -> Result(Instruction, Nil) {
-  let split_opcode = utils.split_16_bit_to_hexadecimal(value)
-  use #(category, vx, vy, n) <- result.try(split_opcode)
+pub opaque type InstructionError {
+  InvalidOpcode(opcode: Int)
+}
+
+pub fn decode_instruction(value: Int) -> Result(Instruction, InstructionError) {
+  // Split the Opcode into four 4-bit nibbles
+  use #(category, vx, vy, n) <- result.try(
+    value
+    |> utils.split_16_bit_to_hexadecimal
+    |> result.replace_error(InvalidOpcode(opcode: value)),
+  )
   let nn = int.bitwise_shift_left(vy, 4) + n
   let nnn = int.bitwise_shift_left(vx, 8) + nn
 
@@ -73,7 +80,7 @@ pub fn decode_instruction(value: Int) -> Result(Instruction, Nil) {
         6 -> Ok(StoreVYinVXBitShiftedRight(vy:, vx:))
         7 -> Ok(SetVXtoVYminusVXBorrow(vx:, vy:))
         0xE -> Ok(StoreVYinVXBitShiftedLeft(vy:, vx:))
-        _ -> Error(InvalidOpcode)
+        _ -> Error(InvalidOpcode(opcode: value))
       }
     9 -> Ok(SkipNextIfVXNotEqualsVY(vx:, vy:))
     0xA -> Ok(StoreAddressInI(nnn:))
@@ -84,7 +91,7 @@ pub fn decode_instruction(value: Int) -> Result(Instruction, Nil) {
       case nn {
         0x9E -> Ok(SkipNextIfKeyPressed(vx:))
         0xA1 -> Ok(SkipNextIfKeyNotPressed(vx:))
-        _ -> Error(InvalidOpcode)
+        _ -> Error(InvalidOpcode(opcode: value))
       }
     }
     0xF -> {
@@ -98,9 +105,9 @@ pub fn decode_instruction(value: Int) -> Result(Instruction, Nil) {
         0x33 -> Ok(StoreDecimalisedVXInIs(vx:))
         0x55 -> Ok(StoreMemory(vx:))
         0x65 -> Ok(LoadMemory(vx:))
-        _ -> Error(InvalidOpcode)
+        _ -> Error(InvalidOpcode(opcode: value))
       }
     }
-    _ -> Error(InvalidOpcode)
+    _ -> Error(InvalidOpcode(opcode: value))
   }
 }
