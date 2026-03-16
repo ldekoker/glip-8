@@ -6,6 +6,7 @@ This is my idiomatic implementation of the language, targeting both JavaScript &
 
 Sources:
 - [Chip-8 Technical Reference](https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Technical-Reference)
+- [Guide to make a CHIP-8 Emulator](https://tobiasvl.github.io/blog/write-a-chip-8-emulator/)
 
 
 # To Run Locally (In Progress)
