@@ -1,6 +1,5 @@
 import gleam/int
 import gleam/result
-import utils
 
 pub opaque type Instruction {
   ExecuteMachineLanguageSubroutineAtAddress(nnn: Int)
@@ -40,15 +39,17 @@ pub opaque type Instruction {
   LoadMemory(vx: Int)
 }
 
-pub opaque type InstructionError {
+pub type InstructionError {
   InvalidOpcode(opcode: Int)
 }
 
+/// Decodes 16-bit instructions following the CHIP-8 Spec.
+/// If an instruction is invalid, instead returns InvalidOpcode.
 pub fn decode_instruction(value: Int) -> Result(Instruction, InstructionError) {
   // Split the Opcode into four 4-bit nibbles
   use #(category, vx, vy, n) <- result.try(
     value
-    |> utils.split_16_bit_to_hexadecimal
+    |> split_16_bit_to_hexadecimal
     |> result.replace_error(InvalidOpcode(opcode: value)),
   )
   let nn = int.bitwise_shift_left(vy, 4) + n
@@ -109,5 +110,14 @@ pub fn decode_instruction(value: Int) -> Result(Instruction, InstructionError) {
       }
     }
     _ -> Error(InvalidOpcode(opcode: value))
+  }
+}
+
+/// Transforms a 16 bit number into a tuple of 4, 4-bit numbers.
+/// Otherwise, returns Nil.
+fn split_16_bit_to_hexadecimal(num: Int) -> Result(#(Int, Int, Int, Int), Nil) {
+  case <<num:16>> {
+    <<a:4, b:4, c:4, d:4>> -> Ok(#(a, b, c, d))
+    _ -> Error(Nil)
   }
 }
