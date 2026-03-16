@@ -13,7 +13,7 @@ pub fn split_hex_digit_test_constructor(
 ) -> Bool {
   let result = utils.split_16_bit_to_hexadecimal(input)
   case result {
-    Some(#(a, b, c, d)) -> {
+    Ok(#(a, b, c, d)) -> {
       #(a, b, c, d) == correct
     }
     _ -> {
