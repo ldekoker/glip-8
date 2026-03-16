@@ -50,11 +50,11 @@ pub fn set_value_at_address(
     fl_bit_array,
   ))
 
-  case value, value % max_value_representable {
-    value, truncated_value if value != truncated_value -> {
-      Error(ValueOverflow(value:))
-    }
-    _, _ -> {
+  let is_truncated = fn(num) { num % max_value_representable != num }
+
+  case is_truncated(value) {
+    True -> Error(ValueOverflow(value:))
+    False -> {
       let FixedLengthBitArray(bytes, ..) = fl_bit_array
       use new_bytes <- result.try(
         bytes
