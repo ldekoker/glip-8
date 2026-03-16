@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+while true; do
+  { find src/ test/ -type f -name "*.gleam"; echo src/ test/; } | entr -ds "gleam test"
+done

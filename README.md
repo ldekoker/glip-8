@@ -14,10 +14,7 @@ Sources:
 gleam run
 ```
 
-To test
-```sh
-{ find src/ -type f -name "*.gleam"; find test/ -type f -name "*.gleam"; } | entr -s "gleam test"
-```
+To test call `./starttest`
 
 # Architecture (Planned)
 The CHIP-8 is a pure data structure, which either the JS or Erlang runtimes hook in to, calling the tick() function at regular intervals and providing details about external state.
