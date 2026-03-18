@@ -72,7 +72,7 @@ pub fn run(cpu: CPU) -> Result(CPU, CPUError) {
   Ok(cpu)
   |> result.try(fetch_instruction)
   |> result.try(decode_instruction)
-  |> result.try(apply_instruction(cpu, _))
+  |> result.try(apply_instruction(cpu |> increment_pc, _))
 }
 
 fn increment_pc(cpu: CPU) -> CPU {
@@ -80,23 +80,16 @@ fn increment_pc(cpu: CPU) -> CPU {
 }
 
 fn fetch_instruction(cpu: CPU) -> Result(Int, CPUError) {
-  let get_nib1 =
-    fixed_length_bit_array.get_value_at_address(
-      cpu.memory,
-      cpu.address_register,
-    )
-    |> result.replace_error(FailedToFetch(cpu.address_register))
+  let get_byte_at = fn(address) {
+    cpu.memory
+    |> fixed_length_bit_array.get_value_at_address(address)
+    |> result.replace_error(FailedToFetch(address))
+  }
 
-  let get_nib2 =
-    fixed_length_bit_array.get_value_at_address(
-      cpu.memory,
-      cpu.address_register + 1,
-    )
-    |> result.replace_error(FailedToFetch(cpu.address_register + 1))
-
-  use nib1 <- result.try(get_nib1)
-  use nib2 <- result.try(get_nib2)
-  Ok(int.bitwise_shift_left(nib1, 8) + nib2)
+  use byte1 <- result.try(get_byte_at(cpu.address_register))
+  use byte2 <- result.try(get_byte_at(cpu.address_register + 1))
+  // {byte1}{byte2}, e.g {0xA2}{0x03} = 0x{A203}
+  Ok(byte1 |> int.bitwise_shift_left(8) |> int.bitwise_or(byte2))
 }
 
 pub fn apply_instruction(
