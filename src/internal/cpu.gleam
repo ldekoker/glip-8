@@ -4,7 +4,7 @@ import gleam/list
 import gleam/result
 import internal/cpu/fixed_length_bit_array
 import internal/cpu/stack
-import internal/cpu/timer as tim
+import internal/cpu/timer
 import internal/font_file.{FontFile}
 import internal/instructions as i
 
@@ -13,13 +13,47 @@ pub opaque type CPU {
     memory: fixed_length_bit_array.FixedLengthBitArray,
     variable_registers: fixed_length_bit_array.FixedLengthBitArray,
     address_register: Int,
-    delay_timer: tim.Timer,
-    sound_timer: tim.Timer,
+    delay_timer: timer.Timer,
+    sound_timer: timer.Timer,
     display_buffer: fixed_length_bit_array.FixedLengthBitArray,
     keypad: fixed_length_bit_array.FixedLengthBitArray,
     stack: stack.Stack(Int),
     pc: Int,
+    behaviour_flags: CPUBehaviourFlags,
   )
+}
+
+pub opaque type CPUBehaviourFlags {
+  CPUBehaviourFlags(
+    bit_shift_flag: Bool,
+    bnnn_flag: Bool,
+    fx1e_flag: Bool,
+    mem_flag: Bool,
+  )
+}
+
+fn config_to_flags(config: CPUConfig) -> CPUBehaviourFlags {
+  case config {
+    Cosmac ->
+      CPUBehaviourFlags(
+        bit_shift_flag: False,
+        bnnn_flag: False,
+        fx1e_flag: False,
+        mem_flag: False,
+      )
+    Modern ->
+      CPUBehaviourFlags(
+        bit_shift_flag: False,
+        bnnn_flag: False,
+        fx1e_flag: False,
+        mem_flag: True,
+      )
+  }
+}
+
+pub type CPUConfig {
+  Cosmac
+  Modern
 }
 
 pub type CPUError {
@@ -37,7 +71,7 @@ pub type CPUError {
   TriedToAccessFakeScreenRow(row: Int)
 }
 
-pub fn new() -> Result(CPU, CPUError) {
+pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
   use memory <- result.try(
     fixed_length_bit_array.new(length: 4096, bits: 8)
     |> result.replace_error(FailedToInitialise("Memory")),
@@ -59,12 +93,13 @@ pub fn new() -> Result(CPU, CPUError) {
     memory:,
     variable_registers:,
     address_register: 0,
-    delay_timer: tim.new(),
-    sound_timer: tim.new(),
+    delay_timer: timer.new(),
+    sound_timer: timer.new(),
     display_buffer:,
     keypad:,
     stack: stack.new(),
     pc: 0,
+    behaviour_flags: config_to_flags(config),
   )
   |> load_font(font_file.base_font)
 }
@@ -211,12 +246,15 @@ pub fn apply_instruction(
     }
     i.StoreVYinVXBitShiftedRight(vx:, vy:) -> {
       // Note: Configurable behaviour desired. Using COSMAC VIP behaviour.
-      use val_at_vy <- result.try(cpu |> get_value_of_v(vy))
+      use value <- result.try(case cpu.behaviour_flags.bit_shift_flag {
+        False -> cpu |> get_value_of_v(vy)
+        True -> cpu |> get_value_of_v(vx)
+      })
 
-      let least_significant_bit = val_at_vy |> int.bitwise_and(0b00000001)
+      let least_significant_bit = value |> int.bitwise_and(0b00000001)
 
       cpu
-      |> set_value_at_v(vx, val_at_vy |> int.bitwise_shift_right(1))
+      |> set_value_at_v(vx, value |> int.bitwise_shift_right(1))
       |> result.try(set_value_at_v(_, 0xF, least_significant_bit))
     }
     i.SetVXtoVYminusVXBorrow(vx:, vy:) -> {
@@ -235,12 +273,15 @@ pub fn apply_instruction(
     }
     i.StoreVYinVXBitShiftedLeft(vx:, vy:) -> {
       // Note: Configurable behaviour desired. Using COSMAC VIP behaviour.
-      use val_at_vy <- result.try(cpu |> get_value_of_v(vy))
+      use value <- result.try(case cpu.behaviour_flags.bit_shift_flag {
+        False -> cpu |> get_value_of_v(vy)
+        True -> cpu |> get_value_of_v(vx)
+      })
 
-      let most_significant_bit = val_at_vy |> int.bitwise_and(0b10000000)
+      let most_significant_bit = value |> int.bitwise_and(0b10000000)
 
       cpu
-      |> set_value_at_v(vx, val_at_vy |> int.bitwise_shift_left(1))
+      |> set_value_at_v(vx, value |> int.bitwise_shift_left(1))
       |> result.try(set_value_at_v(_, 0xF, most_significant_bit))
     }
     i.SkipNextIfVXNotEqualsVY(vx:, vy:) -> {
@@ -252,12 +293,13 @@ pub fn apply_instruction(
     i.StoreAddressInI(nnn:) -> {
       Ok(CPU(..cpu, address_register: nnn))
     }
-    i.JumpToNNNPlusV0(nnn:) -> {
-      // Note: Configurable behaviour desired. Using COSMAC VIP behaviour.
+    i.JumpToNNNPlusV0(vx:, nn:, nnn:) -> {
       use val_at_v0 <- result.try(cpu |> get_value_of_v(0x0))
 
-      // TODO: maybe look at integer overflow here?
-      let pc = nnn + val_at_v0
+      let pc = case cpu.behaviour_flags.bnnn_flag {
+        False -> nnn + val_at_v0
+        True -> { vx |> int.bitwise_shift_left(8) } + nn + val_at_v0
+      }
       Ok(CPU(..cpu, pc:))
     }
     i.SetVXToRand(vx:, mask:) -> {
@@ -282,7 +324,7 @@ pub fn apply_instruction(
       Ok(cpu |> skip_if(!key_pressed))
     }
     i.StoreDelayTimerInVX(vx:) -> {
-      let delay_timer_value = cpu.delay_timer |> tim.get_value
+      let delay_timer_value = cpu.delay_timer |> timer.get_value
 
       cpu |> set_value_at_v(vx, delay_timer_value)
     }
@@ -299,24 +341,29 @@ pub fn apply_instruction(
     i.SetDelayTimerToVX(vx:) -> {
       use val_at_vx <- result.try(cpu |> get_value_of_v(vx))
 
-      let new_delay_timer = cpu.delay_timer |> tim.set_value(val_at_vx)
+      let new_delay_timer = cpu.delay_timer |> timer.set_value(val_at_vx)
 
       Ok(CPU(..cpu, delay_timer: new_delay_timer))
     }
     i.SetSoundTimerToVX(vx:) -> {
       use val_at_vx <- result.try(cpu |> get_value_of_v(vx))
 
-      let new_sound_timer = cpu.sound_timer |> tim.set_value(val_at_vx)
+      let new_sound_timer = cpu.sound_timer |> timer.set_value(val_at_vx)
 
       Ok(CPU(..cpu, sound_timer: new_sound_timer))
     }
     i.AddVXtoI(vx:) -> {
-      // Cosmac Behaviour.
       use val_at_vx <- result.try(cpu |> get_value_of_v(vx))
 
       let i_plus_vx = cpu.address_register + val_at_vx
 
-      Ok(CPU(..cpu, address_register: i_plus_vx))
+      case cpu.behaviour_flags.fx1e_flag, i_plus_vx > 0xFFF {
+        True, True -> {
+          use new_cpu <- result.try(cpu |> set_value_at_v(0xF, 1))
+          Ok(CPU(..new_cpu, address_register: i_plus_vx))
+        }
+        _, _ -> Ok(CPU(..cpu, address_register: i_plus_vx))
+      }
     }
     i.SetItoFontAddress(vx:) -> {
       use val_at_vx <- result.try(cpu |> get_value_of_v(vx))
@@ -340,35 +387,58 @@ pub fn apply_instruction(
       |> result.try(set_memory_at(_, cpu.address_register + 2, ones))
     }
     i.StoreMemory(vx:) -> {
-      // COSMAC behaviour incrementing I as we go
       int.range(from: 0, to: vx + 1, with: Ok(cpu), run: fn(maybe_cpu, index) {
         use cpu <- result.try(maybe_cpu)
 
         // Get v_index register value
         use val_at_v_index: Int <- result.try(cpu |> get_value_of_v(index))
 
-        // Set memory value at I
-        use new_cpu <- result.try(
-          cpu |> set_memory_at(cpu.address_register, val_at_v_index),
-        )
+        case cpu.behaviour_flags.mem_flag {
+          False -> {
+            // Set memory value at I
+            use new_cpu <- result.try(
+              cpu |> set_memory_at(cpu.address_register, val_at_v_index),
+            )
 
-        Ok(CPU(..new_cpu, address_register: cpu.address_register + 1))
+            // Increment address register
+            Ok(CPU(..new_cpu, address_register: cpu.address_register + 1))
+          }
+          True -> {
+            // Set memory value at I
+            cpu
+            |> set_memory_at(cpu.address_register + index, val_at_v_index)
+          }
+        }
       })
     }
     i.LoadMemory(vx:) -> {
-      // COSMAC behaviour incrementing I as we go
       int.range(from: 0, to: vx + 1, with: Ok(cpu), run: fn(maybe_cpu, index) {
         use cpu <- result.try(maybe_cpu)
 
-        // Get memory value at I
-        use val_at_address <- result.try(
-          cpu |> get_memory_at(address: cpu.address_register),
-        )
+        case cpu.behaviour_flags.mem_flag {
+          False -> {
+            // Get memory value at I
+            use val_at_address <- result.try(
+              cpu |> get_memory_at(address: cpu.address_register),
+            )
 
-        // Set v_index register
-        use new_cpu <- result.try(cpu |> set_value_at_v(index, val_at_address))
+            // Set v_index register
+            use new_cpu <- result.try(
+              cpu |> set_value_at_v(index, val_at_address),
+            )
 
-        Ok(CPU(..new_cpu, address_register: cpu.address_register + 1))
+            Ok(CPU(..new_cpu, address_register: cpu.address_register + 1))
+          }
+
+          True -> {
+            // Get memory value at I
+            use val_at_address <- result.try(
+              cpu |> get_memory_at(address: cpu.address_register + index),
+            )
+
+            cpu |> set_value_at_v(index, val_at_address)
+          }
+        }
       })
     }
   }
@@ -611,4 +681,14 @@ fn bit_array_to_list_of_bits_loop(
     }
     _ -> list.reverse(bools)
   }
+}
+
+pub fn tick(cpu: CPU) -> CPU {
+  let CPU(sound_timer:, delay_timer:, ..) = cpu
+
+  CPU(
+    ..cpu,
+    sound_timer: sound_timer |> timer.tick,
+    delay_timer: delay_timer |> timer.tick,
+  )
 }

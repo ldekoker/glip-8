@@ -89,6 +89,8 @@ pub type Instruction {
   /// 
   /// Store `val_VY` << 1 in `VX`. Set register `VF` to `val_VY`'s
   /// most significant bit.
+  /// - COSMAC: As above
+  /// - Alternate: Uses `val_VX` instead of `val_VY`
   StoreVYinVXBitShiftedLeft(vx: Int, vy: Int)
   /// `9XY0`
   /// 
@@ -104,7 +106,7 @@ pub type Instruction {
   /// 
   /// - Cosmac: As above
   /// - Alternate: `BXNN`, jump to `val_VX` + `XNN`
-  JumpToNNNPlusV0(nnn: Int)
+  JumpToNNNPlusV0(vx: Int, nn: Int, nnn: Int)
   /// `CXNN`
   /// 
   /// Set `VX` to a random number AND `NN`
@@ -220,7 +222,7 @@ pub fn decode_instruction(value: Int) -> Result(Instruction, InstructionError) {
       }
     9 -> Ok(SkipNextIfVXNotEqualsVY(vx:, vy:))
     0xA -> Ok(StoreAddressInI(nnn:))
-    0xB -> Ok(JumpToNNNPlusV0(nnn:))
+    0xB -> Ok(JumpToNNNPlusV0(vx:, nn:, nnn:))
     0xC -> Ok(SetVXToRand(vx:, mask: nn))
     0xD -> Ok(Draw(vx:, vy:, n:))
     0xE -> {
