@@ -149,3 +149,28 @@ fn get_bit_array_value_at(
     _ -> Error(Nil)
   }
 }
+
+/// Find the first index in the FixedLengthBitArray who's element
+/// makes the callback True.
+pub fn find_index(
+  in fl_bit_array: FixedLengthBitArray,
+  one_that is_desired: fn(Int) -> Bool,
+) -> Result(Int, Nil) {
+  find_index_loop(fl_bit_array, is_desired, 0)
+}
+
+fn find_index_loop(
+  fl_bit_array: FixedLengthBitArray,
+  is_desired: fn(Int) -> Bool,
+  index: Int,
+) -> Result(Int, Nil) {
+  use value_at_index <- result.try(
+    get_value_at_address(fl_bit_array, index) |> result.replace_error(Nil),
+  )
+  case is_desired(value_at_index) {
+    True -> Ok(index)
+    False -> {
+      find_index_loop(fl_bit_array, is_desired, index + 1)
+    }
+  }
+}
