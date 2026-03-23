@@ -1,8 +1,8 @@
 import chip8/cpu/fixed_length_bit_array
-import chip8/cpu/program_counter
 import gleam/bool
 import gleam/result
 
+/// A stack of up to 16 16-bit numbers
 pub opaque type Stack {
   Stack(fixed_length_bit_array.FixedLengthBitArray, length: Int)
 }
@@ -16,23 +16,18 @@ pub type StackError {
 }
 
 pub fn new() {
-  fixed_length_bit_array.new(16, 16)
+  fixed_length_bit_array.new(16, 2)
   |> result.replace_error(FailedToInitialise)
-  |> result.map(Stack(_, length: 16))
+  |> result.map(Stack(_, length: 0))
 }
 
-pub fn push(
-  stack: Stack,
-  old_pc: program_counter.ProgramCounter,
-) -> Result(Stack, StackError) {
+pub fn push(stack: Stack, value: Int) -> Result(Stack, StackError) {
   let Stack(array, length) = stack
   use <- bool.guard(when: length >= 16, return: Error(PushToFullStack))
 
-  let pc_value = program_counter.get_value(old_pc)
-
   use new_array <- result.try(
     array
-    |> fixed_length_bit_array.set_value_at_address(length, pc_value)
+    |> fixed_length_bit_array.set_value_at_address(length, value)
     |> result.map_error(from_fl_ba_error),
   )
 

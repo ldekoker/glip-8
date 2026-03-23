@@ -737,7 +737,9 @@ fn set_screen_row(
 
 /// Sets Program Counter to NNN and saves current PC value to call stack.
 fn call(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
-  cpu |> set_pc(nnn) |> result.try(stack_push(_, cpu.pc))
+  cpu
+  |> set_pc(nnn)
+  |> result.try(stack_push(_, cpu.pc |> program_counter.get_value))
 }
 
 fn set_value_at_v(cpu: CPU, vx: Int, value: Int) -> Result(CPU, CPUError) {
@@ -795,8 +797,8 @@ pub fn tick(cpu: CPU) {
   CPU(..cpu, sound_timer: new_sound_timer, delay_timer: new_delay_timer) |> Ok
 }
 
-pub fn stack_push(cpu: CPU, old_pc: ProgramCounter) -> Result(CPU, CPUError) {
-  use new_stack <- result.try(cpu.stack |> stack.push(old_pc) |> h)
+pub fn stack_push(cpu: CPU, old_pc_value: Int) -> Result(CPU, CPUError) {
+  use new_stack <- result.try(cpu.stack |> stack.push(old_pc_value) |> h)
   CPU(..cpu, stack: new_stack) |> Ok
 }
 

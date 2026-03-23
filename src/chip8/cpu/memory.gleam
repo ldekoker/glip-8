@@ -13,7 +13,7 @@ pub type MemoryError {
 }
 
 pub fn new() -> Result(Memory, MemoryError) {
-  fixed_length_bit_array.new(length: 4096, bits: 8)
+  fixed_length_bit_array.new(length: 4096, bytes: 1)
   |> result.replace_error(FailedToInitialise)
   |> result.map(Memory)
 }

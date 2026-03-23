@@ -13,7 +13,7 @@ pub type VariableRegistersError {
 }
 
 pub fn new() {
-  fixed_length_bit_array.new(length: 16, bits: 8)
+  fixed_length_bit_array.new(length: 16, bytes: 1)
   |> result.replace_error(FailedToInitialise)
   |> result.map(VariableRegisters)
 }

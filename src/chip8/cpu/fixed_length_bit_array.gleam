@@ -5,29 +5,32 @@ import gleam/int
 import gleam/result
 
 pub opaque type FixedLengthBitArray {
-  FixedLengthBitArray(bit_array: BitArray, bit_length: Int, length: Int)
+  FixedLengthBitArray(bit_array: BitArray, byte_length: Int, length: Int)
 }
 
 pub type FixedLengthBitArrayError {
   BadAddress(address: Int)
   ValueOverflow(value: Int)
-  NonPositiveBitLength(bit_length: Int)
+  NonPositiveByteLength(byte_length: Int)
 }
 
 /// Returns a new Fixed Length Bit Array
 pub fn new(
   length length: Int,
-  bits bit_length: Int,
+  bytes byte_length: Int,
 ) -> Result(FixedLengthBitArray, FixedLengthBitArrayError) {
   use <- bool.guard(
-    when: bit_length <= 0,
-    return: Error(NonPositiveBitLength(bit_length:)),
+    when: byte_length <= 0,
+    return: Error(NonPositiveByteLength(byte_length:)),
   )
 
   Ok(FixedLengthBitArray(
-    bit_array: construct_bit_array_of_zeros(length: length, bits: bit_length),
+    bit_array: construct_bit_array_of_zeros(
+      length: length,
+      bits: byte_length * 8,
+    ),
     length:,
-    bit_length:,
+    byte_length:,
   ))
 }
 
@@ -37,7 +40,7 @@ pub fn get_value_at_address(
 ) -> Result(Int, FixedLengthBitArrayError) {
   let FixedLengthBitArray(bytes, ..) = fl_bit_array
   bytes
-  |> get_bit_array_value_at(address)
+  |> get_bit_array_value_at(address, fl_bit_array.byte_length)
   |> result.replace_error(BadAddress(address:))
 }
 
@@ -61,7 +64,7 @@ pub fn set_value_at_address(
         |> replace_bit_array_value_at(
           address,
           with: value,
-          bit_length: fl_bit_array.bit_length,
+          byte_length: fl_bit_array.byte_length,
         )
         |> result.replace_error(BadAddress(address:)),
       )
@@ -69,7 +72,7 @@ pub fn set_value_at_address(
       Ok(FixedLengthBitArray(
         new_bytes,
         length: fl_bit_array.length,
-        bit_length: fl_bit_array.bit_length,
+        byte_length: fl_bit_array.byte_length,
       ))
     }
   }
@@ -79,10 +82,10 @@ fn get_max_representable_value(
   fl_bit_array: FixedLengthBitArray,
 ) -> Result(Int, FixedLengthBitArrayError) {
   2
-  |> int.power(of: fl_bit_array.bit_length |> int.to_float)
+  |> int.power(of: { fl_bit_array.byte_length * 8 } |> int.to_float)
   |> result.map(float.truncate)
-  |> result.replace_error(NonPositiveBitLength(
-    bit_length: fl_bit_array.bit_length,
+  |> result.replace_error(NonPositiveByteLength(
+    byte_length: fl_bit_array.byte_length,
   ))
 }
 
@@ -96,12 +99,14 @@ fn replace_bit_array_value_at(
   bit_array: BitArray,
   index idx: Int,
   with value: Int,
-  bit_length bit_length: Int,
+  byte_length byte_length: Int,
 ) -> Result(BitArray, Nil) {
-  use #(before, after) <- result.try(bit_array |> split_bit_array_around(idx))
+  use #(before, after) <- result.try(
+    bit_array |> split_bit_array_around(idx, byte_length),
+  )
   Ok(
     before
-    |> bit_array.append(<<value:size(bit_length)>>)
+    |> bit_array.append(<<value:size({ 8 * byte_length })>>)
     |> bit_array.append(after),
   )
 }
@@ -124,17 +129,16 @@ fn construct_bit_array_of_zeros_loop(n: Int, bits: Int, b_a: BitArray) {
 
 /// Returns a tuple of two bit arrays #(before, after) around an index:
 /// -> input bit_array is of form <<..before, value at index, ..after>>
-/// Assumes that the input BitArray contains 16 8-bit numbers.
 fn split_bit_array_around(
   bit_array: BitArray,
   idx: Int,
+  byte_length: Int,
 ) -> Result(#(BitArray, BitArray), Nil) {
-  use before <- result.try(bit_array.slice(bit_array, 0, idx))
-  use after <- result.try(bit_array.slice(
-    bit_array,
-    idx + 1,
-    bit_array.byte_size(bit_array) - { idx + 1 },
-  ))
+  let start = idx * byte_length
+  let end = { idx + 1 } * byte_length
+  let ba_length = bit_array.byte_size(bit_array)
+  use before <- result.try(bit_array.slice(bit_array, 0, start))
+  use after <- result.try(bit_array.slice(bit_array, end, ba_length - end))
   Ok(#(before, after))
 }
 
@@ -142,10 +146,12 @@ fn split_bit_array_around(
 /// in a BitArray containing 8-bit numbers
 fn get_bit_array_value_at(
   bit_array: BitArray,
-  index idx: Int,
+  idx: Int,
+  byte_length: Int,
 ) -> Result(Int, Nil) {
-  case bit_array.slice(bit_array, idx, 1) {
-    Ok(<<value:8>>) -> Ok(value)
+  let start = idx * byte_length
+  case bit_array.slice(bit_array, start, byte_length) {
+    Ok(<<value:size({ 8 * byte_length })>>) -> Ok(value)
     _ -> Error(Nil)
   }
 }

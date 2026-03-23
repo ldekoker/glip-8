@@ -11,7 +11,7 @@ pub type KeyPadError {
 }
 
 pub fn new() -> Result(KeyPad, KeyPadError) {
-  fixed_length_bit_array.new(length: 16, bits: 1)
+  fixed_length_bit_array.new(length: 16, bytes: 1)
   |> result.map(KeyPad)
   |> result.replace_error(FailedToInitialise)
 }

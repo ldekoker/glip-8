@@ -1,9 +1,9 @@
+import chip8/cpu/fixed_length_bit_array
 import gleam/int
 import gleam/result
-import internal/cpu/fixed_length_bit_array
 
 pub fn data_registers_initialise_test() {
-  let assert Ok(data_registers) = fixed_length_bit_array.new(16, 8)
+  let assert Ok(data_registers) = fixed_length_bit_array.new(16, 1)
 
   assert int.range(from: 0, to: 15, with: True, run: fn(so_far, address) {
     so_far
@@ -14,7 +14,7 @@ pub fn data_registers_initialise_test() {
 
 pub fn data_registers_set_test() {
   let assert Ok(data_registers) =
-    fixed_length_bit_array.new(16, 8) |> result.try(set_data_registers)
+    fixed_length_bit_array.new(16, 1) |> result.try(set_data_registers)
 
   assert int.range(from: 0, to: 15, with: True, run: fn(so_far, address) {
     so_far
@@ -46,7 +46,7 @@ fn set_data_registers(
 
 pub fn address_access_error_test() {
   // Create a ByteArray with 10 elements
-  let assert Ok(memory) = fixed_length_bit_array.new(10, 8)
+  let assert Ok(memory) = fixed_length_bit_array.new(10, 1)
   let address = 11
 
   // Access the 11th element
@@ -59,7 +59,7 @@ pub fn address_access_error_test() {
 
 pub fn address_set_error_test() {
   // Create a ByteArray with 10 elements
-  let assert Ok(memory) = fixed_length_bit_array.new(10, 8)
+  let assert Ok(memory) = fixed_length_bit_array.new(10, 1)
   let address = 11
   let new_value = 1
 
@@ -74,7 +74,7 @@ pub fn address_set_error_test() {
 
 pub fn value_set_overflow_test() {
   // Create a ByteArray with 10 elements
-  let assert Ok(memory) = fixed_length_bit_array.new(10, 8)
+  let assert Ok(memory) = fixed_length_bit_array.new(10, 1)
   let address = 11
   let new_value = 257
 
