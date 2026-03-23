@@ -11,6 +11,7 @@ pub opaque type DisplayBuffer {
 
 pub type DisplayBufferError {
   TriedToAccessFakeRow(Int)
+  IncorrectRowLength(Int)
 }
 
 pub fn new() -> Result(DisplayBuffer, DisplayBufferError) {
@@ -28,7 +29,10 @@ pub fn get_row(
   display_buffer: DisplayBuffer,
   row: Int,
 ) -> Result(List(Bool), DisplayBufferError) {
-  use <- bool.guard(when: row >= 32, return: Error(TriedToAccessFakeRow(row)))
+  use <- bool.guard(
+    when: row < 0 || row >= 32,
+    return: Error(TriedToAccessFakeRow(row)),
+  )
   let DisplayBuffer(map) = display_buffer
 
   map
@@ -50,8 +54,13 @@ pub fn set_row(
   new_screen_row: List(Bool),
 ) -> Result(DisplayBuffer, DisplayBufferError) {
   use <- bool.guard(
-    when: y_coord >= 32,
+    when: y_coord < 0 || y_coord >= 32,
     return: Error(TriedToAccessFakeRow(y_coord)),
+  )
+  let row_length = new_screen_row |> list.length
+  use <- bool.guard(
+    when: row_length != 64,
+    return: Error(IncorrectRowLength(row_length)),
   )
   let DisplayBuffer(map) = display_buffer
 

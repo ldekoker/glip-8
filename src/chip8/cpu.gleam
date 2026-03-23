@@ -87,6 +87,7 @@ pub type CPUError {
   TriedToAccessFakeDisplayColumn(Int)
   IValueUnderflow(Int)
   StackValueUnderflow(Int)
+  DisplayReceivedIncorrectRowLength(Int)
 }
 
 pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
@@ -151,6 +152,8 @@ fn e(
   use error <- result.map_error(result)
   case error {
     display_buffer.TriedToAccessFakeRow(row) -> TriedToAccessFakeDisplayRow(row)
+    display_buffer.IncorrectRowLength(row_length) ->
+      DisplayReceivedIncorrectRowLength(row_length)
   }
 }
 
