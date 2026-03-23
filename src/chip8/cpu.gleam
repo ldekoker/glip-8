@@ -85,6 +85,8 @@ pub type CPUError {
   NotInFont(char: Int)
   TimerOverflow(Int)
   TriedToAccessFakeDisplayColumn(Int)
+  IValueUnderflow(Int)
+  StackValueUnderflow(Int)
 }
 
 pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
@@ -139,6 +141,7 @@ fn c(
   use error <- result.map_error(result)
   case error {
     address_register.ValueOverflow(value) -> IValueOverflow(value)
+    address_register.ValueUnderflow(value) -> IValueUnderflow(value)
   }
 }
 
@@ -183,6 +186,7 @@ fn h(result: Result(a, stack.StackError)) -> Result(a, CPUError) {
     stack.ValueOverflow(value) -> StackValueOverflow(value)
     stack.ArrayError(_) -> StackError
     stack.PopFromEmptyStack -> PopFromEmptyStack
+    stack.ValueUnderflow(value) -> StackValueUnderflow(value)
   }
 }
 

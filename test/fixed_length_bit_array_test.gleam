@@ -75,15 +75,25 @@ pub fn address_set_error_test() {
 pub fn value_set_overflow_test() {
   // Create a ByteArray with 10 elements
   let assert Ok(memory) = fixed_length_bit_array.new(10, 1)
-  let address = 11
+  let address = 10
   let new_value = 257
 
-  // Set the 11th element
+  // Set the 10th element
   let bad_access =
     fixed_length_bit_array.set_value_at_address(memory, address, new_value)
 
-  assert result.is_error(bad_access)
   let assert Error(fixed_length_bit_array.ValueOverflow(overflow_value)) =
     bad_access
   assert overflow_value == 257
+}
+
+pub fn value_set_underflow_test() {
+  // Create a ByteArray with 10 elements
+  let assert Ok(memory) = fixed_length_bit_array.new(10, 1)
+  let address = 10
+  let new_value = -1
+
+  // Set the 10th element
+  let assert Error(fixed_length_bit_array.ValueUnderflow(-1)) =
+    fixed_length_bit_array.set_value_at_address(memory, address, new_value)
 }

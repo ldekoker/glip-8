@@ -11,6 +11,7 @@ pub type StackError {
   FailedToInitialise
   PushToFullStack
   ValueOverflow(Int)
+  ValueUnderflow(Int)
   ArrayError(fixed_length_bit_array.FixedLengthBitArrayError)
   PopFromEmptyStack
 }

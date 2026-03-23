@@ -2,6 +2,7 @@ import gleam/bit_array
 import gleam/bool
 import gleam/float
 import gleam/int
+import gleam/order
 import gleam/result
 
 pub opaque type FixedLengthBitArray {
@@ -11,6 +12,7 @@ pub opaque type FixedLengthBitArray {
 pub type FixedLengthBitArrayError {
   BadAddress(address: Int)
   ValueOverflow(value: Int)
+  ValueUnderflow(value: Int)
   NonPositiveByteLength(byte_length: Int)
 }
 
@@ -53,11 +55,19 @@ pub fn set_value_at_address(
     fl_bit_array,
   ))
 
-  let is_truncated = fn(num) { num % max_value_representable != num }
+  let is_truncated = fn(num) {
+    case num >= 0, num < max_value_representable {
+      True, True -> order.Eq
+      True, False -> order.Gt
+      False, True -> order.Lt
+      _, _ -> panic as "unreachable"
+    }
+  }
 
   case is_truncated(value) {
-    True -> Error(ValueOverflow(value:))
-    False -> {
+    order.Gt -> Error(ValueOverflow(value:))
+    order.Lt -> Error(ValueUnderflow(value:))
+    order.Eq -> {
       let FixedLengthBitArray(bytes, ..) = fl_bit_array
       use new_bytes <- result.try(
         bytes
