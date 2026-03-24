@@ -88,6 +88,9 @@ pub type CPUError {
   IValueUnderflow(Int)
   StackValueUnderflow(Int)
   DisplayReceivedIncorrectRowLength(Int)
+  TriedToAccessFakeMemoryAddress(address: Int)
+  MemoryOverflow(value: Int)
+  MemoryUnderflow(value: Int)
 }
 
 pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
@@ -120,8 +123,10 @@ fn a(result: Result(a, memory.MemoryError)) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
     memory.FailedToInitialise -> FailedToInitialiseMemory
-    memory.FailedToFetch(address:) -> FailedToFetchMemory(address:)
-    memory.FailedToSet(address:) -> FailedToSetMemory(address:)
+    memory.TriedToAccessFakeAddress(address:) ->
+      TriedToAccessFakeMemoryAddress(address:)
+    memory.ValueOverflow(value:) -> MemoryOverflow(value:)
+    memory.ValueUnderflow(value:) -> MemoryUnderflow(value:)
   }
 }
 

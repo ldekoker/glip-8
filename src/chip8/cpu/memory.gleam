@@ -8,8 +8,9 @@ pub opaque type Memory {
 
 pub type MemoryError {
   FailedToInitialise
-  FailedToFetch(address: Int)
-  FailedToSet(address: Int)
+  TriedToAccessFakeAddress(address: Int)
+  ValueOverflow(value: Int)
+  ValueUnderflow(value: Int)
 }
 
 pub fn new() -> Result(Memory, MemoryError) {
@@ -26,7 +27,7 @@ pub fn get_value_at(
 
   array
   |> fixed_length_bit_array.get_value_at_address(address)
-  |> result.replace_error(FailedToFetch(address:))
+  |> result.map_error(from_fl_ba_error)
 }
 
 pub fn set_value_at(
@@ -39,5 +40,17 @@ pub fn set_value_at(
   array
   |> fixed_length_bit_array.set_value_at_address(address, value)
   |> result.map(Memory)
-  |> result.replace_error(FailedToSet(address:))
+  |> result.map_error(from_fl_ba_error)
+}
+
+fn from_fl_ba_error(
+  error: fixed_length_bit_array.FixedLengthBitArrayError,
+) -> MemoryError {
+  case error {
+    fixed_length_bit_array.BadAddress(address:) ->
+      TriedToAccessFakeAddress(address:)
+    fixed_length_bit_array.ValueOverflow(value:) -> ValueOverflow(value:)
+    fixed_length_bit_array.ValueUnderflow(value:) -> ValueUnderflow(value:)
+    fixed_length_bit_array.NonPositiveByteLength(byte_length:) -> panic
+  }
 }
