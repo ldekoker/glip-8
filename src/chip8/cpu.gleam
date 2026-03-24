@@ -91,18 +91,25 @@ pub type CPUError {
   TriedToAccessFakeMemoryAddress(address: Int)
   MemoryOverflow(value: Int)
   MemoryUnderflow(value: Int)
+  InternalDisplayBufferError
 }
 
 pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
-  use memory <- result.try(memory.new() |> a)
-  use variable_registers <- result.try(variable_registers.new() |> b)
-  use address_register <- result.try(address_register.new(0) |> c)
-  use delay_timer <- result.try(timer.new() |> d)
-  use sound_timer <- result.try(timer.new() |> d)
-  use display_buffer <- result.try(display_buffer.new() |> e)
-  use keypad <- result.try(keypad.new() |> f)
-  use pc <- result.try(program_counter.new() |> g)
-  use stack <- result.try(stack.new() |> h)
+  use memory <- result.try(memory.new() |> from_memory_error)
+  use variable_registers <- result.try(
+    variable_registers.new() |> from_variable_registers_error,
+  )
+  use address_register <- result.try(
+    address_register.new(0) |> from_address_registers_error,
+  )
+  use delay_timer <- result.try(timer.new() |> from_timer_error)
+  use sound_timer <- result.try(timer.new() |> from_timer_error)
+  use display_buffer <- result.try(
+    display_buffer.new() |> from_display_buffer_error,
+  )
+  use keypad <- result.try(keypad.new() |> from_keypad_error)
+  use pc <- result.try(program_counter.new() |> from_program_counter_error)
+  use stack <- result.try(stack.new() |> from_stack_error)
 
   CPU(
     memory:,
@@ -119,7 +126,9 @@ pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
   |> load_font(font_file.base_font)
 }
 
-fn a(result: Result(a, memory.MemoryError)) -> Result(a, CPUError) {
+fn from_memory_error(
+  result: Result(a, memory.MemoryError),
+) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
     memory.FailedToInitialise -> FailedToInitialiseMemory
@@ -130,7 +139,7 @@ fn a(result: Result(a, memory.MemoryError)) -> Result(a, CPUError) {
   }
 }
 
-fn b(
+fn from_variable_registers_error(
   result: Result(a, variable_registers.VariableRegistersError),
 ) -> Result(a, CPUError) {
   use error <- result.map_error(result)
@@ -141,7 +150,7 @@ fn b(
   }
 }
 
-fn c(
+fn from_address_registers_error(
   result: Result(a, address_register.AddressRegisterError),
 ) -> Result(a, CPUError) {
   use error <- result.map_error(result)
@@ -151,7 +160,7 @@ fn c(
   }
 }
 
-fn e(
+fn from_display_buffer_error(
   result: Result(a, display_buffer.DisplayBufferError),
 ) -> Result(a, CPUError) {
   use error <- result.map_error(result)
@@ -159,17 +168,21 @@ fn e(
     display_buffer.TriedToAccessFakeRow(row) -> TriedToAccessFakeDisplayRow(row)
     display_buffer.IncorrectRowLength(row_length) ->
       DisplayReceivedIncorrectRowLength(row_length)
+    display_buffer.CouldNotAccessSpriteRow -> InternalDisplayBufferError
+    display_buffer.CouldNotGetPixel(_) -> InternalDisplayBufferError
   }
 }
 
-fn d(result: Result(a, timer.TimerError)) -> Result(a, CPUError) {
+fn from_timer_error(result: Result(a, timer.TimerError)) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
     timer.ValueOverflow(value) -> TimerOverflow(value)
   }
 }
 
-fn f(result: Result(a, keypad.KeyPadError)) -> Result(a, CPUError) {
+fn from_keypad_error(
+  result: Result(a, keypad.KeyPadError),
+) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
     keypad.FailedToInitialise -> FailedToInitialiseKeypad
@@ -177,7 +190,7 @@ fn f(result: Result(a, keypad.KeyPadError)) -> Result(a, CPUError) {
   }
 }
 
-fn g(
+fn from_program_counter_error(
   result: Result(a, program_counter.ProgramCounterError),
 ) -> Result(a, CPUError) {
   use error <- result.map_error(result)
@@ -186,7 +199,7 @@ fn g(
   }
 }
 
-fn h(result: Result(a, stack.StackError)) -> Result(a, CPUError) {
+fn from_stack_error(result: Result(a, stack.StackError)) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
     stack.FailedToInitialise -> FailedToInitialiseStack
@@ -208,8 +221,6 @@ pub fn run(cpu: CPU) -> Result(CPU, CPUError) {
     })
   }
 
-  // Increment PC by 2, figure out when
-
   Ok(cpu)
   |> result.try(fetch_instruction)
   |> result.try(decode_instruction)
@@ -220,14 +231,16 @@ pub fn run(cpu: CPU) -> Result(CPU, CPUError) {
 }
 
 fn increment_pc(cpu: CPU, by value: Int) -> Result(CPU, CPUError) {
-  use new_pc <- result.try(cpu.pc |> program_counter.increment_by(value) |> g)
+  use new_pc <- result.try(
+    cpu.pc |> program_counter.increment_by(value) |> from_program_counter_error,
+  )
   CPU(..cpu, pc: new_pc) |> Ok
 }
 
 fn get_memory_at(cpu: CPU, address address: Int) -> Result(Int, CPUError) {
   cpu.memory
   |> memory.get_value_at(address)
-  |> a
+  |> from_memory_error
 }
 
 fn set_memory_at(
@@ -238,7 +251,7 @@ fn set_memory_at(
   use new_memory <- result.try({
     cpu.memory
     |> memory.set_value_at(address, value)
-    |> a
+    |> from_memory_error
   })
 
   Ok(CPU(..cpu, memory: new_memory))
@@ -552,7 +565,7 @@ fn set_address_register(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
   use new_address_register <- result.try(
     cpu.address_register
     |> address_register.set_value(new_value)
-    |> c,
+    |> from_address_registers_error,
   )
 
   Ok(CPU(..cpu, address_register: new_address_register))
@@ -560,7 +573,7 @@ fn set_address_register(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
 
 fn set_delay_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
   use new_timer <- result.try(
-    cpu.delay_timer |> timer.set_value(new_value) |> d,
+    cpu.delay_timer |> timer.set_value(new_value) |> from_timer_error,
   )
 
   Ok(CPU(..cpu, delay_timer: new_timer))
@@ -568,7 +581,7 @@ fn set_delay_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
 
 fn set_sound_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
   use new_timer <- result.try(
-    cpu.sound_timer |> timer.set_value(new_value) |> d,
+    cpu.sound_timer |> timer.set_value(new_value) |> from_timer_error,
   )
 
   Ok(CPU(..cpu, sound_timer: new_timer))
@@ -645,7 +658,7 @@ fn get_pressed_key(cpu: CPU) -> Result(Int, Nil) {
 }
 
 fn is_key_pressed(cpu: CPU, key: Int) -> Result(Bool, CPUError) {
-  cpu.keypad |> keypad.is_pressed(key) |> f
+  cpu.keypad |> keypad.is_pressed(key) |> from_keypad_error
 }
 
 // Skips the next instruction if the boolean is True.
@@ -658,93 +671,39 @@ fn skip_if(cpu: CPU, bool: Bool) -> Result(CPU, CPUError) {
 
 fn draw(cpu: CPU, vx: Int, vy: Int, n: Int) -> Result(CPU, CPUError) {
   let i = cpu |> get_address_register_value
-  use top_left_x <- result.try(
-    cpu |> get_value_of_v(vx) |> result.map(fn(num) { num % 64 }),
+  use starting_x_coord <- result.try(
+    cpu |> get_value_of_v(vx) |> result.map(fn(x) { x % 64 }),
   )
-  use top_left_y <- result.try(
-    cpu |> get_value_of_v(vy) |> result.map(fn(num) { num % 32 }),
-  )
-  // set VF to 0
-  use cpu <- result.try(cpu |> set_value_at_v(0xF, 0))
-  // for n rows (until the smaller of n + 1 and 33)
-  use maybe_cpu, index <- int.range(
-    from: 0,
-    to: int.max(top_left_y + n + 1, 33),
-    with: Ok(cpu),
-  )
-  use cpu <- result.try(maybe_cpu)
-
-  let x = 56 - top_left_x
-
-  use <- bool.guard(
-    when: x < 0 || x >= 64,
-    return: Error(TriedToAccessFakeDisplayColumn(x)),
+  use starting_y_coord <- result.try(
+    cpu |> get_value_of_v(vy) |> result.map(fn(y) { y % 32 }),
   )
 
-  let y = top_left_y + index
+  let ending_y_coord = int.min(starting_y_coord + n, 32)
+  // exclusive
+  let range = starting_y_coord - ending_y_coord
 
-  // get the Nth byte of sprite data (so I+N) and shift it left or right
-  use sprite_data <- result.try(
-    cpu
-    |> get_memory_at(i + index)
-    |> result.map(int.bitwise_shift_left(_, x))
-    |> result.map(fn(a) {
-      a
-      |> int.to_base2
-      |> string.pad_start(64, "0")
-      |> string.to_graphemes
-      |> list.map(fn(char) {
-        case char {
-          "0" -> False
-          "1" -> True
-          _ -> panic
-        }
-      })
-    }),
-  )
+  use sprite <- result.try(cpu |> get_sprite(i, range))
 
-  use screen_row <- result.try(cpu |> get_screen_row(y))
-
-  let new_screen_row =
-    list.zip(sprite_data, screen_row)
-    |> list.map(fn(pair) { bool.exclusive_or(pair.0, pair.1) })
-
-  let any_bit_flipped_off =
-    new_screen_row
-    |> list.map(bool.negate)
-    |> list.zip(screen_row)
-    |> list.map(fn(pair) { bool.and(pair.0, pair.1) })
-    |> list.any(fn(a) { a })
-    |> fn(a) {
-      case a {
-        True -> 1
-        False -> 0
-      }
-    }
-
-  cpu
-  |> set_value_at_v(0xF, any_bit_flipped_off)
-  |> result.try(set_screen_row(_, y, new_screen_row))
-}
-
-fn get_screen_row(cpu: CPU, y_coord: Int) -> Result(List(Bool), CPUError) {
-  cpu.display_buffer
-  |> display_buffer.get_row(y_coord)
-  |> e
-}
-
-fn set_screen_row(
-  cpu: CPU,
-  y_coord: Int,
-  new_screen_row: List(Bool),
-) -> Result(CPU, CPUError) {
-  use new_display_buffer <- result.try(
+  use #(new_display_buffer, bit_flipped_off) <- result.try(
     cpu.display_buffer
-    |> display_buffer.set_row(y_coord, new_screen_row)
-    |> e,
+    |> display_buffer.draw(sprite, starting_x_coord, starting_y_coord)
+    |> from_display_buffer_error,
   )
 
-  Ok(CPU(..cpu, display_buffer: new_display_buffer))
+  CPU(..cpu, display_buffer: new_display_buffer)
+  |> set_value_at_v(0xF, case bit_flipped_off {
+    True -> 1
+    False -> 0
+  })
+}
+
+fn get_sprite(cpu: CPU, i: Int, range: Int) -> Result(List(Int), CPUError) {
+  int.range(0, range, [] |> Ok, fn(rows, y_offset) {
+    use value_at_location <- result.try(cpu |> get_memory_at(i + y_offset))
+    use rows <- result.try(rows)
+    [value_at_location, ..rows] |> Ok
+  })
+  |> result.map(list.reverse)
 }
 
 /// Sets Program Counter to NNN and saves current PC value to call stack.
@@ -758,7 +717,7 @@ fn set_value_at_v(cpu: CPU, vx: Int, value: Int) -> Result(CPU, CPUError) {
   use new_variable_registers <- result.try(
     cpu.variable_registers
     |> variable_registers.set_value(vx, value)
-    |> b,
+    |> from_variable_registers_error,
   )
 
   Ok(CPU(..cpu, variable_registers: new_variable_registers))
@@ -767,11 +726,13 @@ fn set_value_at_v(cpu: CPU, vx: Int, value: Int) -> Result(CPU, CPUError) {
 fn get_value_of_v(cpu: CPU, vx: Int) -> Result(Int, CPUError) {
   cpu.variable_registers
   |> variable_registers.get_value(vx)
-  |> b
+  |> from_variable_registers_error
 }
 
 fn set_pc(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
-  use new_pc <- result.try(cpu.pc |> program_counter.set_value(nnn) |> g)
+  use new_pc <- result.try(
+    cpu.pc |> program_counter.set_value(nnn) |> from_program_counter_error,
+  )
 
   Ok(CPU(..cpu, pc: new_pc))
 }
@@ -780,7 +741,7 @@ fn clear_screen(cpu: CPU) {
   use display_buffer <- result.try(
     cpu.display_buffer
     |> display_buffer.clear
-    |> e,
+    |> from_display_buffer_error,
   )
 
   Ok(CPU(..cpu, display_buffer:))
@@ -802,19 +763,27 @@ fn return(cpu: CPU) -> Result(CPU, CPUError) {
 
 pub fn tick(cpu: CPU) {
   let CPU(sound_timer:, delay_timer:, ..) = cpu
-  use new_sound_timer <- result.try(sound_timer |> timer.tick |> d)
+  use new_sound_timer <- result.try(
+    sound_timer |> timer.tick |> from_timer_error,
+  )
 
-  use new_delay_timer <- result.try(delay_timer |> timer.tick |> d)
+  use new_delay_timer <- result.try(
+    delay_timer |> timer.tick |> from_timer_error,
+  )
 
   CPU(..cpu, sound_timer: new_sound_timer, delay_timer: new_delay_timer) |> Ok
 }
 
 pub fn stack_push(cpu: CPU, old_pc_value: Int) -> Result(CPU, CPUError) {
-  use new_stack <- result.try(cpu.stack |> stack.push(old_pc_value) |> h)
+  use new_stack <- result.try(
+    cpu.stack |> stack.push(old_pc_value) |> from_stack_error,
+  )
   CPU(..cpu, stack: new_stack) |> Ok
 }
 
 pub fn stack_pop(cpu: CPU) -> Result(CPU, CPUError) {
-  use #(new_pc_value, new_stack) <- result.try(cpu.stack |> stack.pop |> h)
+  use #(new_pc_value, new_stack) <- result.try(
+    cpu.stack |> stack.pop |> from_stack_error,
+  )
   CPU(..cpu, stack: new_stack) |> set_pc(new_pc_value)
 }
