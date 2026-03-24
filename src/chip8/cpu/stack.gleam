@@ -4,7 +4,7 @@ import gleam/result
 
 /// A stack of up to 16 16-bit numbers
 pub opaque type Stack {
-  Stack(fixed_length_bit_array.FixedLengthBitArray, length: Int)
+  Stack(fixed_length_bit_array.ByteArray, length: Int)
 }
 
 pub type StackError {
@@ -12,7 +12,7 @@ pub type StackError {
   PushToFullStack
   ValueOverflow(Int)
   ValueUnderflow(Int)
-  ArrayError(fixed_length_bit_array.FixedLengthBitArrayError)
+  ArrayError(fixed_length_bit_array.ByteArrayError)
   PopFromEmptyStack
 }
 
@@ -48,9 +48,7 @@ pub fn pop(stack: Stack) -> Result(#(Int, Stack), StackError) {
   #(popped_value, Stack(array, length - 1)) |> Ok
 }
 
-fn from_fl_ba_error(
-  error: fixed_length_bit_array.FixedLengthBitArrayError,
-) -> StackError {
+fn from_fl_ba_error(error: fixed_length_bit_array.ByteArrayError) -> StackError {
   case error {
     fixed_length_bit_array.BadAddress(_) -> PushToFullStack
     fixed_length_bit_array.ValueOverflow(value) -> ValueOverflow(value)

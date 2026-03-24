@@ -2,7 +2,7 @@ import chip8/cpu/fixed_length_bit_array
 import gleam/result
 
 pub opaque type KeyPad {
-  KeyPad(fixed_length_bit_array.FixedLengthBitArray)
+  KeyPad(fixed_length_bit_array.ByteArray)
 }
 
 pub type KeyPadError {

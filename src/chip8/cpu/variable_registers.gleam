@@ -3,7 +3,7 @@ import gleam/result
 
 /// Sixteen 8-bit registers.
 pub opaque type VariableRegisters {
-  VariableRegisters(fixed_length_bit_array.FixedLengthBitArray)
+  VariableRegisters(fixed_length_bit_array.ByteArray)
 }
 
 pub type VariableRegistersError {

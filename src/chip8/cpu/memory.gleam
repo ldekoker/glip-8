@@ -3,7 +3,7 @@ import gleam/result
 
 /// A 4096-byte long memory array, storing 8-bit values.
 pub opaque type Memory {
-  Memory(fixed_length_bit_array.FixedLengthBitArray)
+  Memory(fixed_length_bit_array.ByteArray)
 }
 
 pub type MemoryError {
@@ -43,9 +43,7 @@ pub fn set_value_at(
   |> result.map_error(from_fl_ba_error)
 }
 
-fn from_fl_ba_error(
-  error: fixed_length_bit_array.FixedLengthBitArrayError,
-) -> MemoryError {
+fn from_fl_ba_error(error: fixed_length_bit_array.ByteArrayError) -> MemoryError {
   case error {
     fixed_length_bit_array.BadAddress(address:) ->
       TriedToAccessFakeAddress(address:)

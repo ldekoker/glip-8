@@ -1,11 +1,14 @@
 import chip8/cpu/fixed_length_bit_array
 import gleam/int
 import gleam/result
+import qcheck
 
 pub fn data_registers_initialise_test() {
-  let assert Ok(data_registers) = fixed_length_bit_array.new(16, 1)
+  use length <- qcheck.given(qcheck.small_strictly_positive_int())
+  use bytes <- qcheck.given(qcheck.small_strictly_positive_int())
+  let assert Ok(data_registers) = fixed_length_bit_array.new(length:, bytes:)
 
-  assert int.range(from: 0, to: 15, with: True, run: fn(so_far, address) {
+  assert int.range(from: 0, to: length, with: True, run: fn(so_far, address) {
     so_far
     && data_registers |> fixed_length_bit_array.get_value_at_address(address)
     == Ok(0)
@@ -23,9 +26,7 @@ pub fn data_registers_set_test() {
   })
 }
 
-fn set_data_registers(
-  data_registers: fixed_length_bit_array.FixedLengthBitArray,
-) {
+fn set_data_registers(data_registers: fixed_length_bit_array.ByteArray) {
   data_registers
   |> fixed_length_bit_array.set_value_at_address(1, 1)
   |> result.try(fixed_length_bit_array.set_value_at_address(_, 2, 2))
@@ -45,16 +46,21 @@ fn set_data_registers(
 }
 
 pub fn address_access_error_test() {
+  use length <- qcheck.given(qcheck.small_strictly_positive_int())
   // Create a ByteArray with 10 elements
-  let assert Ok(memory) = fixed_length_bit_array.new(10, 1)
-  let address = 11
+  let assert Ok(memory) = fixed_length_bit_array.new(length, 1)
+  use invalid_offset <- qcheck.given(qcheck.small_non_negative_int())
+
+  // some number >= length
+  let invalid_address_gt = length + invalid_offset
+  // some number < 0
+  let invalid_address_lt = -1 - invalid_offset
 
   // Access the 11th element
-  let bad_access = fixed_length_bit_array.get_value_at_address(memory, address)
-
-  assert result.is_error(bad_access)
-  let assert Error(fixed_length_bit_array.BadAddress(bad_address)) = bad_access
-  assert bad_address == address
+  assert fixed_length_bit_array.get_value_at_address(memory, invalid_address_gt)
+    |> result.is_error
+  assert fixed_length_bit_array.get_value_at_address(memory, invalid_address_lt)
+    |> result.is_error
 }
 
 pub fn address_set_error_test() {

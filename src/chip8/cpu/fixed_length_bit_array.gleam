@@ -5,11 +5,11 @@ import gleam/int
 import gleam/order
 import gleam/result
 
-pub opaque type FixedLengthBitArray {
-  FixedLengthBitArray(bit_array: BitArray, byte_length: Int, length: Int)
+pub opaque type ByteArray {
+  ByteArray(bit_array: BitArray, byte_length: Int, length: Int)
 }
 
-pub type FixedLengthBitArrayError {
+pub type ByteArrayError {
   BadAddress(address: Int)
   ValueOverflow(value: Int)
   ValueUnderflow(value: Int)
@@ -20,13 +20,13 @@ pub type FixedLengthBitArrayError {
 pub fn new(
   length length: Int,
   bytes byte_length: Int,
-) -> Result(FixedLengthBitArray, FixedLengthBitArrayError) {
+) -> Result(ByteArray, ByteArrayError) {
   use <- bool.guard(
     when: byte_length <= 0,
     return: Error(NonPositiveByteLength(byte_length:)),
   )
 
-  Ok(FixedLengthBitArray(
+  Ok(ByteArray(
     bit_array: construct_bit_array_of_zeros(
       length: length,
       bits: byte_length * 8,
@@ -37,20 +37,20 @@ pub fn new(
 }
 
 pub fn get_value_at_address(
-  fl_bit_array: FixedLengthBitArray,
+  fl_bit_array: ByteArray,
   address: Int,
-) -> Result(Int, FixedLengthBitArrayError) {
-  let FixedLengthBitArray(bytes, ..) = fl_bit_array
+) -> Result(Int, ByteArrayError) {
+  let ByteArray(bytes, ..) = fl_bit_array
   bytes
   |> get_bit_array_value_at(address, fl_bit_array.byte_length)
   |> result.replace_error(BadAddress(address:))
 }
 
 pub fn set_value_at_address(
-  fl_bit_array: FixedLengthBitArray,
+  fl_bit_array: ByteArray,
   address: Int,
   value: Int,
-) -> Result(FixedLengthBitArray, FixedLengthBitArrayError) {
+) -> Result(ByteArray, ByteArrayError) {
   use max_value_representable <- result.try(get_max_representable_value(
     fl_bit_array,
   ))
@@ -68,7 +68,7 @@ pub fn set_value_at_address(
     order.Gt -> Error(ValueOverflow(value:))
     order.Lt -> Error(ValueUnderflow(value:))
     order.Eq -> {
-      let FixedLengthBitArray(bytes, ..) = fl_bit_array
+      let ByteArray(bytes, ..) = fl_bit_array
       use new_bytes <- result.try(
         bytes
         |> replace_bit_array_value_at(
@@ -79,7 +79,7 @@ pub fn set_value_at_address(
         |> result.replace_error(BadAddress(address:)),
       )
 
-      Ok(FixedLengthBitArray(
+      Ok(ByteArray(
         new_bytes,
         length: fl_bit_array.length,
         byte_length: fl_bit_array.byte_length,
@@ -89,8 +89,8 @@ pub fn set_value_at_address(
 }
 
 fn get_max_representable_value(
-  fl_bit_array: FixedLengthBitArray,
-) -> Result(Int, FixedLengthBitArrayError) {
+  fl_bit_array: ByteArray,
+) -> Result(Int, ByteArrayError) {
   2
   |> int.power(of: { fl_bit_array.byte_length * 8 } |> int.to_float)
   |> result.map(float.truncate)
@@ -99,7 +99,7 @@ fn get_max_representable_value(
   ))
 }
 
-pub fn get_bit_array(fl_bit_array: FixedLengthBitArray) -> BitArray {
+pub fn get_bit_array(fl_bit_array: ByteArray) -> BitArray {
   fl_bit_array.bit_array
 }
 
@@ -166,17 +166,17 @@ fn get_bit_array_value_at(
   }
 }
 
-/// Find the first index in the FixedLengthBitArray who's element
+/// Find the first index in the ByteArray who's element
 /// makes the callback True.
 pub fn find_index(
-  in fl_bit_array: FixedLengthBitArray,
+  in fl_bit_array: ByteArray,
   one_that is_desired: fn(Int) -> Bool,
 ) -> Result(Int, Nil) {
   find_index_loop(fl_bit_array, is_desired, 0)
 }
 
 fn find_index_loop(
-  fl_bit_array: FixedLengthBitArray,
+  fl_bit_array: ByteArray,
   is_desired: fn(Int) -> Bool,
   index: Int,
 ) -> Result(Int, Nil) {
