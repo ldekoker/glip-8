@@ -108,7 +108,11 @@ pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
     display_buffer.new() |> from_display_buffer_error,
   )
   use keypad <- result.try(keypad.new() |> from_keypad_error)
-  use pc <- result.try(program_counter.new() |> from_program_counter_error)
+  use pc <- result.try(
+    program_counter.new()
+    |> result.try(program_counter.set_value(_, 0x200))
+    |> from_program_counter_error,
+  )
   use stack <- result.try(stack.new() |> from_stack_error)
 
   CPU(
@@ -258,7 +262,7 @@ fn set_memory_at(
 }
 
 fn fetch_instruction(cpu: CPU) -> Result(Int, CPUError) {
-  let i = cpu.address_register |> address_register.get_value
+  let i = cpu.pc |> program_counter.get_value
   use byte1 <- result.try(cpu |> get_memory_at(i))
   use byte2 <- result.try(
     cpu
@@ -737,7 +741,7 @@ fn set_pc(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
   Ok(CPU(..cpu, pc: new_pc))
 }
 
-fn clear_screen(cpu: CPU) {
+fn clear_screen(cpu: CPU) -> Result(CPU, CPUError) {
   use display_buffer <- result.try(
     cpu.display_buffer
     |> display_buffer.clear
@@ -761,7 +765,7 @@ fn return(cpu: CPU) -> Result(CPU, CPUError) {
   cpu |> stack_pop
 }
 
-pub fn tick(cpu: CPU) {
+pub fn tick(cpu: CPU) -> Result(CPU, CPUError) {
   let CPU(sound_timer:, delay_timer:, ..) = cpu
   use new_sound_timer <- result.try(
     sound_timer |> timer.tick |> from_timer_error,
@@ -786,4 +790,15 @@ pub fn stack_pop(cpu: CPU) -> Result(CPU, CPUError) {
     cpu.stack |> stack.pop |> from_stack_error,
   )
   CPU(..cpu, stack: new_stack) |> set_pc(new_pc_value)
+}
+
+pub fn extract_display(cpu: CPU) -> Result(List(List(Bool)), Nil) {
+  cpu.display_buffer |> display_buffer.render
+}
+
+pub fn load_rom(old_cpu: CPU, rom: List(Int)) {
+  let offset = 0x200
+
+  use new_cpu, index_value, index <- list.index_fold(rom, Ok(old_cpu))
+  new_cpu |> result.try(set_memory_at(_, index + offset, index_value))
 }
