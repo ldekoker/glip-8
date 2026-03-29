@@ -1,11 +1,9 @@
 import assets/roms
 import chip8/cpu
-import gleam/bit_array
 import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
-import gleam/string
 import gleam_community/colour
 import lustre
 import lustre/attribute
