@@ -3,6 +3,7 @@ import gleam/float
 import gleam/int
 import gleam/result
 import qcheck
+import test_utils
 
 pub fn address_register_test() {
   use value <- qcheck.given(valid_value_generator())
@@ -36,7 +37,7 @@ pub fn address_register_overflow_test() {
 
 pub fn address_register_underflow_test() {
   use valid_value <- qcheck.given(valid_value_generator())
-  use underflow_value <- qcheck.given(int_lt(0))
+  use underflow_value <- qcheck.given(test_utils.int_lt(0))
   let assert Error(address_register.ValueUnderflow(underflow_value)) =
     address_register.new(underflow_value)
 
@@ -58,11 +59,6 @@ fn is_equal(
 fn int_ge(x: Int) -> qcheck.Generator(Int) {
   use rand <- qcheck.map(qcheck.small_non_negative_int())
   rand + x
-}
-
-fn int_lt(x: Int) -> qcheck.Generator(Int) {
-  use rand <- qcheck.map(qcheck.small_strictly_positive_int())
-  x - rand
 }
 
 fn valid_value_generator() -> qcheck.Generator(Int) {
