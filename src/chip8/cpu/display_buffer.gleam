@@ -1,4 +1,3 @@
-import chip8/cpu/memory
 import gleam/bool
 import gleam/dict
 import gleam/int
@@ -184,9 +183,4 @@ pub fn render(display_buffer: DisplayBuffer) -> Result(List(List(Bool)), Nil) {
 
     [new_row, ..rows] |> Ok
   }
-  |> result.map(fn(rows) {
-    rows
-    |> list.map(list.reverse)
-    |> list.reverse
-  })
 }

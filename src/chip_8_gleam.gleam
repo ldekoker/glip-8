@@ -15,7 +15,7 @@ import lustre/element/html
 import lustre/element/svg
 import lustre/event
 
-const roms = [ROM(roms.ibm_game, "IBM")]
+const roms = [ROM(roms.ibm_game, "IBM"), ROM(roms.windows, "Windows")]
 
 const dimensions = #(64, 32)
 
@@ -47,6 +47,7 @@ type Msg {
   UserSelectedRom(rom: ROM)
   RomLoaded(cpu.CPU)
   CPUHadError(cpu.CPUError)
+  UserUpdatedSelectRow(rom: ROM)
 }
 
 /// UPDATE ------------------------------------------------------------
@@ -59,6 +60,10 @@ fn update(_model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         selected_rom: roms |> list.first |> result.lazy_unwrap(fn() { panic }),
         error: option.Some(error),
       ),
+      effect.none(),
+    )
+    UserUpdatedSelectRow(rom) -> #(
+      SelectingRom(selected_rom: rom, error: option.None),
       effect.none(),
     )
   }
@@ -79,7 +84,7 @@ fn load_rom(rom: ROM) -> Effect(Msg) {
 
 fn tick(cpu: cpu.CPU) -> Effect(Msg) {
   use dispatch <- effect.from
-  use <- set_timeout(1000 / 10)
+  use <- set_timeout(1)
 
   dispatch(case cpu |> cpu.run {
     Ok(cpu) -> RomLoaded(cpu)
@@ -110,7 +115,15 @@ fn select_rom(
 ) -> element.Element(Msg) {
   element.fragment([
     html.select(
-      [attribute.name("select_rom")],
+      [
+        attribute.name("select_rom"),
+        event.on_change(fn(x) {
+          UserUpdatedSelectRow(
+            list.find(roms, one_that: fn(r) { r.name == x })
+            |> result.lazy_unwrap(fn() { panic }),
+          )
+        }),
+      ],
       list.map(roms, fn(rom) {
         let ROM(filepath, name) = rom
         html.option(
@@ -126,7 +139,7 @@ fn select_rom(
       }),
     ),
     html.button([event.on_click(UserSelectedRom(selected_rom))], [
-      html.text("Load"),
+      html.text("Load" <> selected_rom.name),
     ]),
     html.p([], [
       format_error(error),
