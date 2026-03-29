@@ -5,6 +5,7 @@ import gleam/result
 pub fn stack_test() {
   use stack_nums <- result.try(
     stack.new()
+    |> Ok
     |> result.try(stack.push(_, 1))
     |> result.try(stack.push(_, 2))
     |> result.try(stack.push(_, 3)),
@@ -23,12 +24,12 @@ pub fn stack_test() {
 pub fn empty_stack_test() {
   let empty_stack = stack.new()
 
-  let error = empty_stack |> result.try(stack.pop)
+  let error = empty_stack |> stack.pop
   assert error == Error(stack.PopFromEmptyStack)
 }
 
 pub fn full_stack_test() {
-  use stack <- result.try(stack.new())
+  let stack = stack.new()
   let assert Error(stack.PushToFullStack) =
     list.try_fold(
       over: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
@@ -38,7 +39,7 @@ pub fn full_stack_test() {
 }
 
 pub fn stack_value_overflow_test() {
-  use stack <- result.try(stack.new())
+  let stack = stack.new()
 
   let assert Error(stack.ValueOverflow(65_536)) = stack |> stack.push(65_536)
 }

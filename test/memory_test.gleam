@@ -2,7 +2,7 @@ import chip8/cpu/memory
 import gleam/result
 
 pub fn memory_test() {
-  let assert Ok(memory) = memory.new()
+  let memory = memory.new()
 
   let assert Ok(0) = memory |> memory.get_value_at(0)
   let assert Ok(0) = memory |> memory.get_value_at(900)
@@ -20,7 +20,7 @@ pub fn memory_test() {
 }
 
 pub fn memory_bad_access_test() {
-  let assert Ok(memory) = memory.new()
+  let memory = memory.new()
 
   let assert Error(memory.TriedToAccessFakeAddress(-1)) =
     memory |> memory.get_value_at(-1)
@@ -34,7 +34,7 @@ pub fn memory_bad_access_test() {
 }
 
 pub fn memory_flow_test() {
-  let assert Ok(memory) = memory.new()
+  let memory = memory.new()
 
   let assert Error(memory.ValueOverflow(256)) =
     memory |> memory.set_value_at(0, 256)

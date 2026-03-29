@@ -12,7 +12,6 @@ import gleam/bool
 import gleam/int
 import gleam/list
 import gleam/result
-import gleam/string
 
 pub opaque type CPU {
   CPU(
@@ -92,13 +91,14 @@ pub type CPUError {
   MemoryOverflow(value: Int)
   MemoryUnderflow(value: Int)
   InternalDisplayBufferError
+  RegisterOverflow(Int)
+  RegisterUnderflow(Int)
+  TriedToAccessFakeRegister(Int)
 }
 
 pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
-  use memory <- result.try(memory.new() |> from_memory_error)
-  use variable_registers <- result.try(
-    variable_registers.new() |> from_variable_registers_error,
-  )
+  let memory = memory.new()
+  let variable_registers = variable_registers.new()
   use address_register <- result.try(
     address_register.new(0) |> from_address_registers_error,
   )
@@ -107,13 +107,13 @@ pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
   use display_buffer <- result.try(
     display_buffer.new() |> from_display_buffer_error,
   )
-  use keypad <- result.try(keypad.new() |> from_keypad_error)
+  let keypad = keypad.new()
   use pc <- result.try(
     program_counter.new()
     |> result.try(program_counter.set_value(_, 0x200))
     |> from_program_counter_error,
   )
-  use stack <- result.try(stack.new() |> from_stack_error)
+  let stack = stack.new()
 
   CPU(
     memory:,
@@ -135,7 +135,6 @@ fn from_memory_error(
 ) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
-    memory.FailedToInitialise -> FailedToInitialiseMemory
     memory.TriedToAccessFakeAddress(address:) ->
       TriedToAccessFakeMemoryAddress(address:)
     memory.ValueOverflow(value:) -> MemoryOverflow(value:)
@@ -148,9 +147,10 @@ fn from_variable_registers_error(
 ) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
-    variable_registers.FailedToInitialise -> FailedToInitialiseVariableRegisters
-    variable_registers.FailedToSetV(x) -> FailedToSetV(x)
-    variable_registers.FailedToGetFromV(x) -> FailedToGetFromV(x)
+    variable_registers.ValueOverflow(value) -> RegisterOverflow(value)
+    variable_registers.ValueUnderflow(value) -> RegisterUnderflow(value)
+    variable_registers.TriedToAccessFakeRegister(register) ->
+      TriedToAccessFakeRegister(register)
   }
 }
 
@@ -189,7 +189,6 @@ fn from_keypad_error(
 ) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
-    keypad.FailedToInitialise -> FailedToInitialiseKeypad
     keypad.TriedToAccessFakeKey(key) -> TriedToAccessFakeKey(key)
   }
 }
@@ -206,10 +205,8 @@ fn from_program_counter_error(
 fn from_stack_error(result: Result(a, stack.StackError)) -> Result(a, CPUError) {
   use error <- result.map_error(result)
   case error {
-    stack.FailedToInitialise -> FailedToInitialiseStack
     stack.PushToFullStack -> PushToFullStack
     stack.ValueOverflow(value) -> StackValueOverflow(value)
-    stack.ArrayError(_) -> StackError
     stack.PopFromEmptyStack -> PopFromEmptyStack
     stack.ValueUnderflow(value) -> StackValueUnderflow(value)
   }
@@ -262,12 +259,17 @@ fn set_memory_at(
 }
 
 fn fetch_instruction(cpu: CPU) -> Result(Int, CPUError) {
-  let i = cpu.pc |> program_counter.get_value
-  use byte1 <- result.try(cpu |> get_memory_at(i))
+  let pc = cpu.pc |> program_counter.get_value
+  use byte1 <- result.try(cpu |> get_memory_at(pc))
   use byte2 <- result.try(
     cpu
-    |> get_memory_at(i + 1),
+    |> get_memory_at(pc + 1),
   )
+
+  // echo byte1
+  //   |> int.bitwise_shift_left(8)
+  //   |> int.bitwise_or(byte2)
+  //   |> int.to_base16
 
   // {byte1}{byte2}, e.g {0xA2}{0x03} = 0x{A203}
   Ok(byte1 |> int.bitwise_shift_left(8) |> int.bitwise_or(byte2))
@@ -684,7 +686,7 @@ fn draw(cpu: CPU, vx: Int, vy: Int, n: Int) -> Result(CPU, CPUError) {
 
   let ending_y_coord = int.min(starting_y_coord + n, 32)
   // exclusive
-  let range = starting_y_coord - ending_y_coord
+  let range = ending_y_coord - starting_y_coord
 
   use sprite <- result.try(cpu |> get_sprite(i, range))
 

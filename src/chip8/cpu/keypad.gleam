@@ -16,16 +16,12 @@ pub opaque type KeyPad {
 }
 
 pub type KeyPadError {
-  FailedToInitialise
   TriedToAccessFakeKey(Int)
 }
 
 /// Return a new Keypad.
-pub fn new() -> Result(KeyPad, KeyPadError) {
-  dict.new()
-  |> Ok
-  |> result.map(KeyPad)
-  |> result.replace_error(FailedToInitialise)
+pub fn new() -> KeyPad {
+  dict.new() |> KeyPad
 }
 
 /// Finds the first key currently being pressed.
@@ -60,6 +56,8 @@ pub fn set_pressed(
 
   dict |> dict.insert(for: key, insert: value) |> KeyPad |> Ok
 }
+
+// VALIDATION ---------------------------------------------------------
 
 fn validate_key(
   key: Int,

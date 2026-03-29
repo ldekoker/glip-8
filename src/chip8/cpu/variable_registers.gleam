@@ -1,38 +1,62 @@
-import chip8/cpu/fixed_length_bit_array
+import gleam/bool
+import gleam/dict
 import gleam/result
 
 /// Sixteen 8-bit registers.
 pub opaque type VariableRegisters {
-  VariableRegisters(fixed_length_bit_array.ByteArray)
+  VariableRegisters(dict.Dict(Int, Int))
 }
 
 pub type VariableRegistersError {
-  FailedToInitialise
-  FailedToSetV(Int)
-  FailedToGetFromV(Int)
+  ValueOverflow(Int)
+  ValueUnderflow(Int)
+  TriedToAccessFakeRegister(Int)
 }
 
 pub fn new() {
-  fixed_length_bit_array.new(length: 16, bytes: 1)
-  |> result.replace_error(FailedToInitialise)
-  |> result.map(VariableRegisters)
+  dict.new() |> VariableRegisters
 }
 
+/// Sets value of given register.
 pub fn set_value(
   variable_registers: VariableRegisters,
   at vx: Int,
   to value: Int,
 ) {
-  let VariableRegisters(array) = variable_registers
-  array
-  |> fixed_length_bit_array.set_value_at_address(vx, value % 256)
-  |> result.map(VariableRegisters)
-  |> result.replace_error(FailedToSetV(vx))
+  use <- validate_value(value)
+  use <- validate_register(vx)
+  let VariableRegisters(dict) = variable_registers
+
+  dict |> dict.insert(vx, value) |> VariableRegisters |> Ok
 }
 
+/// Gets value of given register.
+/// If register is valid but unset, returns 0.
 pub fn get_value(variable_registers: VariableRegisters, at vx: Int) {
-  let VariableRegisters(array) = variable_registers
-  array
-  |> fixed_length_bit_array.get_value_at_address(vx)
-  |> result.replace_error(FailedToGetFromV(vx))
+  use <- validate_register(vx)
+  let VariableRegisters(dict) = variable_registers
+
+  dict |> dict.get(vx) |> result.unwrap(0) |> Ok
+}
+
+// VALIDATION ---------------------------------------------------------
+
+fn validate_value(
+  value: Int,
+  func: fn() -> Result(a, VariableRegistersError),
+) -> Result(a, VariableRegistersError) {
+  use <- bool.guard(when: value >= 256, return: Error(ValueOverflow(value)))
+  use <- bool.guard(value < 0, Error(ValueUnderflow(value)))
+  func()
+}
+
+fn validate_register(
+  register: Int,
+  func: fn() -> Result(a, VariableRegistersError),
+) -> Result(a, VariableRegistersError) {
+  use <- bool.guard(
+    when: register < 0 || register >= 16,
+    return: Error(TriedToAccessFakeRegister(register)),
+  )
+  func()
 }

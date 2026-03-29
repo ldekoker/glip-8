@@ -226,6 +226,12 @@ fn format_error(error: option.Option(cpu.CPUError)) -> element.Element(Msg) {
           "Memory Underflow " <> int.to_string(value)
 
         cpu.InternalDisplayBufferError -> "Internal Display Buffer Error"
+        cpu.RegisterOverflow(value) ->
+          "Register Overflow: " <> value |> int.to_string
+        cpu.RegisterUnderflow(value) ->
+          "Register Underflow: " <> value |> int.to_string
+        cpu.TriedToAccessFakeRegister(register) ->
+          "Tried to access invalid register " <> register |> int.to_string
       }
     option.None -> ""
   })
