@@ -5,7 +5,7 @@ pub fn int_lt(x: Int) -> qcheck.Generator(Int) {
   x - rand
 }
 
-pub fn int_ge(x: Int) {
+pub fn int_ge(x: Int) -> qcheck.Generator(Int) {
   use rand <- qcheck.map(qcheck.small_non_negative_int())
   rand + x
 }

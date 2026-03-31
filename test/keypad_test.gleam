@@ -32,7 +32,7 @@ pub fn keypad_invalid_access_test() {
   Nil
 }
 
-pub fn setting_one_key_does_not_change_others_test() {
+pub fn keypad_assignment_isolation_test() {
   use keypad <- qcheck.given(keypad_generator())
   use key <- qcheck.given(valid_key_generator())
 
