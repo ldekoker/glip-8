@@ -95,6 +95,7 @@ pub type CPUError {
   RegisterUnderflow(Int)
   TriedToAccessFakeRegister(Int)
   PCValueUnderflow(Int)
+  TimerUnderflow(Int)
 }
 
 pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
@@ -182,6 +183,7 @@ fn from_timer_error(result: Result(a, timer.TimerError)) -> Result(a, CPUError) 
   use error <- result.map_error(result)
   case error {
     timer.ValueOverflow(value) -> TimerOverflow(value)
+    timer.ValueUnderflow(value) -> TimerUnderflow(value)
   }
 }
 
