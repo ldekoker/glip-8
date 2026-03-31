@@ -16,8 +16,8 @@ pub fn keypad_functions_test() {
 
   let assert Ok(new_keypad) = keypad |> keypad.set_pressed(valid_key, True)
   let assert Ok(True) = new_keypad |> keypad.is_pressed(valid_key)
-  let assert Ok(valid_key) = new_keypad |> keypad.get_pressed()
-
+  let assert Ok(pressed_key) = new_keypad |> keypad.get_pressed()
+  assert valid_key == pressed_key
   Nil
 }
 
@@ -25,8 +25,9 @@ pub fn keypad_invalid_access_test() {
   let keypad = keypad.new()
   use invalid_key <- qcheck.given(invalid_key_generator())
 
-  let assert Error(keypad.TriedToAccessFakeKey(invalid_key)) =
+  let assert Error(keypad.TriedToAccessFakeKey(key)) =
     keypad |> keypad.is_pressed(invalid_key)
+  assert key == invalid_key
 
   Nil
 }
