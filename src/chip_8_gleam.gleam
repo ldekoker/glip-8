@@ -230,6 +230,8 @@ fn format_error(error: option.Option(cpu.CPUError)) -> element.Element(Msg) {
           "Register Underflow: " <> value |> int.to_string
         cpu.TriedToAccessFakeRegister(register) ->
           "Tried to access invalid register " <> register |> int.to_string
+        cpu.PCValueUnderflow(value) ->
+          "Program Counter Underflow " <> int.to_string(value)
       }
     option.None -> ""
   })

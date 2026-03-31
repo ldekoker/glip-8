@@ -94,6 +94,7 @@ pub type CPUError {
   RegisterOverflow(Int)
   RegisterUnderflow(Int)
   TriedToAccessFakeRegister(Int)
+  PCValueUnderflow(Int)
 }
 
 pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
@@ -199,6 +200,7 @@ fn from_program_counter_error(
   use error <- result.map_error(result)
   case error {
     program_counter.ValueOverflow(value) -> PCValueOverflow(value)
+    program_counter.ValueUnderflow(value) -> PCValueUnderflow(value)
   }
 }
 
