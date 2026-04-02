@@ -1,30 +1,51 @@
-import chip8/cpu/address_register.{type AddressRegister}
 import chip8/cpu/display_buffer.{type DisplayBuffer}
 import chip8/cpu/keypad.{type KeyPad}
-import chip8/cpu/memory.{type Memory}
-import chip8/cpu/program_counter.{type ProgramCounter}
-import chip8/cpu/stack.{type Stack}
-import chip8/cpu/timer.{type Timer}
-import chip8/cpu/variable_registers.{type VariableRegisters}
 import chip8/font_file.{FontFile}
 import chip8/instructions as i
 import gleam/bool
+import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/result
 
+// CONSTANTS ----------------------------------------------------------
+
+const sixteen_bit = 65_536
+
+const twelve_bit = 4096
+
+const eight_bit = 256
+
+const address_register_limit = sixteen_bit
+
+const pc_limit = twelve_bit
+
+const stack_limit = sixteen_bit
+
+const memory_address_limit = twelve_bit
+
+const memory_value_limit = eight_bit
+
+const timer_limit = eight_bit
+
+const variable_registers_value_limit = eight_bit
+
+const variable_registers_address_limit = 16
+
+// TYPES --------------------------------------------------------------
+
 pub opaque type CPU {
   CPU(
-    memory: Memory,
-    variable_registers: VariableRegisters,
-    address_register: AddressRegister,
-    delay_timer: Timer,
-    sound_timer: Timer,
-    display_buffer: DisplayBuffer,
-    keypad: KeyPad,
-    stack: Stack,
-    pc: ProgramCounter,
     behaviour_flags: CPUBehaviourFlags,
+    pc: Int,
+    address_register: Int,
+    variable_registers: dict.Dict(Int, Int),
+    delay_timer: Int,
+    sound_timer: Int,
+    stack: List(Int),
+    keypad: KeyPad,
+    memory: dict.Dict(Int, Int),
+    display_buffer: DisplayBuffer,
   )
 }
 
@@ -40,25 +61,6 @@ pub opaque type CPUBehaviourFlags {
 pub type CPUConfig {
   Cosmac
   Modern
-}
-
-fn config_to_flags(config: CPUConfig) -> CPUBehaviourFlags {
-  case config {
-    Cosmac ->
-      CPUBehaviourFlags(
-        bit_shift_flag: False,
-        bnnn_flag: False,
-        fx1e_flag: False,
-        mem_flag: False,
-      )
-    Modern ->
-      CPUBehaviourFlags(
-        bit_shift_flag: False,
-        bnnn_flag: False,
-        fx1e_flag: False,
-        mem_flag: True,
-      )
-  }
 }
 
 pub type CPUError {
@@ -98,24 +100,42 @@ pub type CPUError {
   TimerUnderflow(Int)
 }
 
+fn from_display_buffer_error(
+  result: Result(a, display_buffer.DisplayBufferError),
+) -> Result(a, CPUError) {
+  use error <- result.map_error(result)
+  case error {
+    display_buffer.TriedToAccessFakeRow(row) -> TriedToAccessFakeDisplayRow(row)
+    display_buffer.IncorrectRowLength(row_length) ->
+      DisplayReceivedIncorrectRowLength(row_length)
+    display_buffer.CouldNotAccessSpriteRow -> InternalDisplayBufferError
+    display_buffer.CouldNotGetPixel(_) -> InternalDisplayBufferError
+  }
+}
+
+fn from_keypad_error(
+  result: Result(a, keypad.KeyPadError),
+) -> Result(a, CPUError) {
+  use error <- result.map_error(result)
+  case error {
+    keypad.TriedToAccessFakeKey(key) -> TriedToAccessFakeKey(key)
+  }
+}
+
+// CPU OPERATIONS -----------------------------------------------------
+
 pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
-  let memory = memory.new()
-  let variable_registers = variable_registers.new()
-  use address_register <- result.try(
-    address_register.new(0) |> from_address_registers_error,
-  )
-  use delay_timer <- result.try(timer.new() |> from_timer_error)
-  use sound_timer <- result.try(timer.new() |> from_timer_error)
+  let memory = dict.new()
+  let variable_registers = dict.new()
+  let address_register = 0
+  let delay_timer = 0
+  let sound_timer = 0
   use display_buffer <- result.try(
     display_buffer.new() |> from_display_buffer_error,
   )
   let keypad = keypad.new()
-  use pc <- result.try(
-    program_counter.new()
-    |> result.try(program_counter.set_value(_, 0x200))
-    |> from_program_counter_error,
-  )
-  let stack = stack.new()
+  let pc = 0
+  let stack = []
 
   CPU(
     memory:,
@@ -132,88 +152,11 @@ pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
   |> load_font(font_file.base_font)
 }
 
-fn from_memory_error(
-  result: Result(a, memory.MemoryError),
-) -> Result(a, CPUError) {
-  use error <- result.map_error(result)
-  case error {
-    memory.TriedToAccessFakeAddress(address:) ->
-      TriedToAccessFakeMemoryAddress(address:)
-    memory.ValueOverflow(value:) -> MemoryOverflow(value:)
-    memory.ValueUnderflow(value:) -> MemoryUnderflow(value:)
-  }
-}
+pub fn load_rom(old_cpu: CPU, rom: List(Int)) {
+  let offset = 0x200
 
-fn from_variable_registers_error(
-  result: Result(a, variable_registers.VariableRegistersError),
-) -> Result(a, CPUError) {
-  use error <- result.map_error(result)
-  case error {
-    variable_registers.ValueOverflow(value) -> RegisterOverflow(value)
-    variable_registers.ValueUnderflow(value) -> RegisterUnderflow(value)
-    variable_registers.TriedToAccessFakeRegister(register) ->
-      TriedToAccessFakeRegister(register)
-  }
-}
-
-fn from_address_registers_error(
-  result: Result(a, address_register.AddressRegisterError),
-) -> Result(a, CPUError) {
-  use error <- result.map_error(result)
-  case error {
-    address_register.ValueOverflow(value) -> IValueOverflow(value)
-    address_register.ValueUnderflow(value) -> IValueUnderflow(value)
-  }
-}
-
-fn from_display_buffer_error(
-  result: Result(a, display_buffer.DisplayBufferError),
-) -> Result(a, CPUError) {
-  use error <- result.map_error(result)
-  case error {
-    display_buffer.TriedToAccessFakeRow(row) -> TriedToAccessFakeDisplayRow(row)
-    display_buffer.IncorrectRowLength(row_length) ->
-      DisplayReceivedIncorrectRowLength(row_length)
-    display_buffer.CouldNotAccessSpriteRow -> InternalDisplayBufferError
-    display_buffer.CouldNotGetPixel(_) -> InternalDisplayBufferError
-  }
-}
-
-fn from_timer_error(result: Result(a, timer.TimerError)) -> Result(a, CPUError) {
-  use error <- result.map_error(result)
-  case error {
-    timer.ValueOverflow(value) -> TimerOverflow(value)
-    timer.ValueUnderflow(value) -> TimerUnderflow(value)
-  }
-}
-
-fn from_keypad_error(
-  result: Result(a, keypad.KeyPadError),
-) -> Result(a, CPUError) {
-  use error <- result.map_error(result)
-  case error {
-    keypad.TriedToAccessFakeKey(key) -> TriedToAccessFakeKey(key)
-  }
-}
-
-fn from_program_counter_error(
-  result: Result(a, program_counter.ProgramCounterError),
-) -> Result(a, CPUError) {
-  use error <- result.map_error(result)
-  case error {
-    program_counter.ValueOverflow(value) -> PCValueOverflow(value)
-    program_counter.ValueUnderflow(value) -> PCValueUnderflow(value)
-  }
-}
-
-fn from_stack_error(result: Result(a, stack.StackError)) -> Result(a, CPUError) {
-  use error <- result.map_error(result)
-  case error {
-    stack.PushToFullStack -> PushToFullStack
-    stack.ValueOverflow(value) -> StackValueOverflow(value)
-    stack.PopFromEmptyStack -> PopFromEmptyStack
-    stack.ValueUnderflow(value) -> StackValueUnderflow(value)
-  }
+  use new_cpu, index_value, index <- list.index_fold(rom, Ok(old_cpu))
+  new_cpu |> result.try(set_memory_at(_, index + offset, index_value))
 }
 
 pub fn run(cpu: CPU) -> Result(CPU, CPUError) {
@@ -235,45 +178,12 @@ pub fn run(cpu: CPU) -> Result(CPU, CPUError) {
   })
 }
 
-fn increment_pc(cpu: CPU, by value: Int) -> Result(CPU, CPUError) {
-  use new_pc <- result.try(
-    cpu.pc |> program_counter.increment_by(value) |> from_program_counter_error,
-  )
-  CPU(..cpu, pc: new_pc) |> Ok
-}
-
-fn get_memory_at(cpu: CPU, address address: Int) -> Result(Int, CPUError) {
-  cpu.memory
-  |> memory.get_value_at(address)
-  |> from_memory_error
-}
-
-fn set_memory_at(
-  cpu: CPU,
-  address address: Int,
-  to value: Int,
-) -> Result(CPU, CPUError) {
-  use new_memory <- result.try({
-    cpu.memory
-    |> memory.set_value_at(address, value)
-    |> from_memory_error
-  })
-
-  Ok(CPU(..cpu, memory: new_memory))
-}
-
 fn fetch_instruction(cpu: CPU) -> Result(Int, CPUError) {
-  let pc = cpu.pc |> program_counter.get_value
-  use byte1 <- result.try(cpu |> get_memory_at(pc))
+  use byte1 <- result.try(cpu |> get_memory_at(cpu.pc))
   use byte2 <- result.try(
     cpu
-    |> get_memory_at(pc + 1),
+    |> get_memory_at(cpu.pc + 1),
   )
-
-  // echo byte1
-  //   |> int.bitwise_shift_left(8)
-  //   |> int.bitwise_or(byte2)
-  //   |> int.to_base16
 
   // {byte1}{byte2}, e.g {0xA2}{0x03} = 0x{A203}
   Ok(byte1 |> int.bitwise_shift_left(8) |> int.bitwise_or(byte2))
@@ -450,7 +360,7 @@ pub fn apply_instruction(
       cpu |> skip_if(!key_pressed)
     }
     i.StoreDelayTimerInVX(vx:) -> {
-      let delay_timer_value = cpu.delay_timer |> timer.get_value
+      let delay_timer_value = cpu.delay_timer
 
       cpu |> set_value_at_v(vx, delay_timer_value)
     }
@@ -566,36 +476,6 @@ pub fn apply_instruction(
   }
 }
 
-fn get_address_register_value(cpu: CPU) -> Int {
-  cpu.address_register |> address_register.get_value
-}
-
-fn set_address_register(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
-  use new_address_register <- result.try(
-    cpu.address_register
-    |> address_register.set_value(new_value)
-    |> from_address_registers_error,
-  )
-
-  Ok(CPU(..cpu, address_register: new_address_register))
-}
-
-fn set_delay_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
-  use new_timer <- result.try(
-    cpu.delay_timer |> timer.set_value(new_value) |> from_timer_error,
-  )
-
-  Ok(CPU(..cpu, delay_timer: new_timer))
-}
-
-fn set_sound_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
-  use new_timer <- result.try(
-    cpu.sound_timer |> timer.set_value(new_value) |> from_timer_error,
-  )
-
-  Ok(CPU(..cpu, sound_timer: new_timer))
-}
-
 /// Loads font data into CPU memory.
 /// Each character is stored at character value * 5
 /// e.g 3 is at 15.
@@ -661,13 +541,15 @@ fn get_font_address(font_value: Int) -> Result(Int, CPUError) {
   Ok(font_value * 5)
 }
 
-/// Gets the first pressed key in numeric order.
-fn get_pressed_key(cpu: CPU) -> Result(Int, Nil) {
-  cpu.keypad |> keypad.get_pressed
+/// Sets Program Counter to NNN and saves current PC value to call stack.
+fn call(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
+  cpu
+  |> set_pc(nnn)
+  |> result.try(stack_push(_, cpu.pc))
 }
 
-fn is_key_pressed(cpu: CPU, key: Int) -> Result(Bool, CPUError) {
-  cpu.keypad |> keypad.is_pressed(key) |> from_keypad_error
+fn return(cpu: CPU) -> Result(CPU, CPUError) {
+  cpu |> stack_pop
 }
 
 // Skips the next instruction if the boolean is True.
@@ -677,6 +559,140 @@ fn skip_if(cpu: CPU, bool: Bool) -> Result(CPU, CPUError) {
     False -> cpu |> Ok
   }
 }
+
+// CPU CONFIG OPERATIONS ----------------------------------------------
+fn config_to_flags(config: CPUConfig) -> CPUBehaviourFlags {
+  case config {
+    Cosmac ->
+      CPUBehaviourFlags(
+        bit_shift_flag: False,
+        bnnn_flag: False,
+        fx1e_flag: False,
+        mem_flag: False,
+      )
+    Modern ->
+      CPUBehaviourFlags(
+        bit_shift_flag: False,
+        bnnn_flag: False,
+        fx1e_flag: False,
+        mem_flag: True,
+      )
+  }
+}
+
+// PC OPERATIONS ------------------------------------------------------
+
+fn set_pc(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
+  let new_pc = nnn % pc_limit
+
+  Ok(CPU(..cpu, pc: new_pc))
+}
+
+fn increment_pc(cpu: CPU, by value: Int) -> Result(CPU, CPUError) {
+  let new_pc = { cpu.pc + value } % pc_limit
+
+  CPU(..cpu, pc: new_pc) |> Ok
+}
+
+// ADDRESS REGISTER OPERATIONS ----------------------------------------
+
+fn get_address_register_value(cpu: CPU) -> Int {
+  cpu.address_register
+}
+
+fn set_address_register(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
+  let new_address_register = new_value % address_register_limit
+
+  Ok(CPU(..cpu, address_register: new_address_register))
+}
+
+// VARIABLE REGISTERS OPERATIONS --------------------------------------
+
+fn set_value_at_v(cpu: CPU, vx: Int, value: Int) -> Result(CPU, CPUError) {
+  let value = value % variable_registers_value_limit
+  let address = vx % variable_registers_address_limit
+  let new_variable_registers =
+    cpu.variable_registers |> dict.insert(address, value)
+
+  Ok(CPU(..cpu, variable_registers: new_variable_registers))
+}
+
+fn get_value_of_v(cpu: CPU, vx: Int) -> Result(Int, CPUError) {
+  cpu.variable_registers
+  |> dict.get(vx % variable_registers_address_limit)
+  |> result.replace_error(FailedToGetFromV(vx))
+}
+
+// TIMER OPERATIONS ---------------------------------------------------
+
+pub fn tick(cpu: CPU) -> Result(CPU, CPUError) {
+  let CPU(sound_timer:, delay_timer:, ..) = cpu
+  let new_sound_timer = int.max(sound_timer - 1, 0)
+  let new_delay_timer = int.max(delay_timer - 1, 0)
+
+  CPU(..cpu, sound_timer: new_sound_timer, delay_timer: new_delay_timer) |> Ok
+}
+
+fn set_delay_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
+  let new_timer = new_value % timer_limit
+
+  Ok(CPU(..cpu, delay_timer: new_timer))
+}
+
+fn set_sound_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
+  let new_timer = new_value % timer_limit
+
+  Ok(CPU(..cpu, sound_timer: new_timer))
+}
+
+// STACK OPERATIONS ---------------------------------------------------
+
+pub fn stack_push(cpu: CPU, old_pc_value: Int) -> Result(CPU, CPUError) {
+  let new_stack = [old_pc_value % stack_limit, ..cpu.stack]
+
+  CPU(..cpu, stack: new_stack) |> Ok
+}
+
+pub fn stack_pop(cpu: CPU) -> Result(CPU, CPUError) {
+  case cpu.stack {
+    [] -> Error(PopFromEmptyStack)
+    [top, ..rest] -> CPU(..cpu, stack: rest) |> set_pc(top)
+  }
+}
+
+// KEYPAD OPERATIONS --------------------------------------------------
+
+/// Gets the first pressed key in numeric order.
+fn get_pressed_key(cpu: CPU) -> Result(Int, Nil) {
+  cpu.keypad |> keypad.get_pressed
+}
+
+fn is_key_pressed(cpu: CPU, key: Int) -> Result(Bool, CPUError) {
+  cpu.keypad |> keypad.is_pressed(key) |> from_keypad_error
+}
+
+// MEMORY OPERATIONS --------------------------------------------------
+
+fn get_memory_at(cpu: CPU, address address: Int) -> Result(Int, CPUError) {
+  cpu.memory
+  |> dict.get(address % memory_address_limit)
+  |> result.unwrap(0)
+  |> Ok
+}
+
+fn set_memory_at(
+  cpu: CPU,
+  address address: Int,
+  to value: Int,
+) -> Result(CPU, CPUError) {
+  let new_memory =
+    cpu.memory
+    |> dict.insert(address % memory_address_limit, value % memory_value_limit)
+
+  Ok(CPU(..cpu, memory: new_memory))
+}
+
+// DISPLAY BUFFER OPERATIONS ------------------------------------------
 
 fn draw(cpu: CPU, vx: Int, vy: Int, n: Int) -> Result(CPU, CPUError) {
   let i = cpu |> get_address_register_value
@@ -715,38 +731,6 @@ fn get_sprite(cpu: CPU, i: Int, range: Int) -> Result(List(Int), CPUError) {
   |> result.map(list.reverse)
 }
 
-/// Sets Program Counter to NNN and saves current PC value to call stack.
-fn call(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
-  cpu
-  |> set_pc(nnn)
-  |> result.try(stack_push(_, cpu.pc |> program_counter.get_value))
-}
-
-fn set_value_at_v(cpu: CPU, vx: Int, value: Int) -> Result(CPU, CPUError) {
-  let value = value % 256 |> int.absolute_value
-  use new_variable_registers <- result.try(
-    cpu.variable_registers
-    |> variable_registers.set_value(vx, value)
-    |> from_variable_registers_error,
-  )
-
-  Ok(CPU(..cpu, variable_registers: new_variable_registers))
-}
-
-fn get_value_of_v(cpu: CPU, vx: Int) -> Result(Int, CPUError) {
-  cpu.variable_registers
-  |> variable_registers.get_value(vx)
-  |> from_variable_registers_error
-}
-
-fn set_pc(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
-  use new_pc <- result.try(
-    cpu.pc |> program_counter.set_value(nnn) |> from_program_counter_error,
-  )
-
-  Ok(CPU(..cpu, pc: new_pc))
-}
-
 fn clear_screen(cpu: CPU) -> Result(CPU, CPUError) {
   use display_buffer <- result.try(
     cpu.display_buffer
@@ -757,6 +741,12 @@ fn clear_screen(cpu: CPU) -> Result(CPU, CPUError) {
   Ok(CPU(..cpu, display_buffer:))
 }
 
+pub fn extract_display(cpu: CPU) -> Result(List(List(Bool)), Nil) {
+  cpu.display_buffer |> display_buffer.render
+}
+
+// MISCELLANEOUS ------------------------------------------------------
+
 pub fn split(num: Int) -> Result(#(Int, Int, Int), Nil) {
   use <- bool.guard(when: num < 0, return: Error(Nil))
   let num = num % 1000
@@ -765,46 +755,4 @@ pub fn split(num: Int) -> Result(#(Int, Int, Int), Nil) {
   let ones = num % 10
 
   Ok(#(hundreds, tens, ones))
-}
-
-fn return(cpu: CPU) -> Result(CPU, CPUError) {
-  cpu |> stack_pop
-}
-
-pub fn tick(cpu: CPU) -> Result(CPU, CPUError) {
-  let CPU(sound_timer:, delay_timer:, ..) = cpu
-  use new_sound_timer <- result.try(
-    sound_timer |> timer.tick |> from_timer_error,
-  )
-
-  use new_delay_timer <- result.try(
-    delay_timer |> timer.tick |> from_timer_error,
-  )
-
-  CPU(..cpu, sound_timer: new_sound_timer, delay_timer: new_delay_timer) |> Ok
-}
-
-pub fn stack_push(cpu: CPU, old_pc_value: Int) -> Result(CPU, CPUError) {
-  use new_stack <- result.try(
-    cpu.stack |> stack.push(old_pc_value) |> from_stack_error,
-  )
-  CPU(..cpu, stack: new_stack) |> Ok
-}
-
-pub fn stack_pop(cpu: CPU) -> Result(CPU, CPUError) {
-  use #(new_pc_value, new_stack) <- result.try(
-    cpu.stack |> stack.pop |> from_stack_error,
-  )
-  CPU(..cpu, stack: new_stack) |> set_pc(new_pc_value)
-}
-
-pub fn extract_display(cpu: CPU) -> Result(List(List(Bool)), Nil) {
-  cpu.display_buffer |> display_buffer.render
-}
-
-pub fn load_rom(old_cpu: CPU, rom: List(Int)) {
-  let offset = 0x200
-
-  use new_cpu, index_value, index <- list.index_fold(rom, Ok(old_cpu))
-  new_cpu |> result.try(set_memory_at(_, index + offset, index_value))
 }
