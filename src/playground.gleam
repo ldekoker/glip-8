@@ -8,7 +8,7 @@ import simplifile
 
 pub fn main() {
   let assert Ok(rom_data) =
-    simplifile.read_bits(from: "./src/playground/assets/windows.ch8")
+    simplifile.read_bits(from: "./src/playground/assets/corax_tests.ch8")
     |> result.map(bit_array.base16_encode)
     |> result.map(string.to_graphemes)
     |> result.map(list.sized_chunk(_, 2))

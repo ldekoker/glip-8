@@ -371,7 +371,6 @@ pub fn apply_instruction(
       |> result.try(set_value_at_v(_, 0xF, flag_value))
     }
     i.StoreVYinVXBitShiftedRight(vx:, vy:) -> {
-      // Note: Configurable behaviour desired. Using COSMAC VIP behaviour.
       use value <- result.try(case cpu.behaviour_flags.bit_shift_flag {
         False -> cpu |> get_value_of_v(vy)
         True -> cpu |> get_value_of_v(vx)
@@ -398,13 +397,13 @@ pub fn apply_instruction(
       |> result.try(set_value_at_v(_, 0xF, flag_value))
     }
     i.StoreVYinVXBitShiftedLeft(vx:, vy:) -> {
-      // Note: Configurable behaviour desired. Using COSMAC VIP behaviour.
       use value <- result.try(case cpu.behaviour_flags.bit_shift_flag {
         False -> cpu |> get_value_of_v(vy)
         True -> cpu |> get_value_of_v(vx)
       })
 
-      let most_significant_bit = value |> int.bitwise_and(0b10000000)
+      let most_significant_bit =
+        value |> int.bitwise_and(0b10000000) |> int.bitwise_shift_right(7)
 
       cpu
       |> set_value_at_v(vx, value |> int.bitwise_shift_left(1))
@@ -724,6 +723,7 @@ fn call(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
 }
 
 fn set_value_at_v(cpu: CPU, vx: Int, value: Int) -> Result(CPU, CPUError) {
+  let value = value % 256 |> int.absolute_value
   use new_variable_registers <- result.try(
     cpu.variable_registers
     |> variable_registers.set_value(vx, value)

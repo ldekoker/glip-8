@@ -29,53 +29,6 @@ pub fn new() -> Result(DisplayBuffer, DisplayBufferError) {
   |> Ok
 }
 
-pub fn get_row(
-  display_buffer: DisplayBuffer,
-  row: Int,
-) -> Result(List(Bool), DisplayBufferError) {
-  use <- bool.guard(
-    when: row < 0 || row >= 32,
-    return: Error(TriedToAccessFakeRow(row)),
-  )
-  let DisplayBuffer(map) = display_buffer
-
-  map
-  |> dict.to_list
-  |> list.filter(fn(pair) { { pair |> pair.first |> pair.second } == row })
-  |> list.sort(by: fn(paira, pairb) {
-    let a_x = paira |> pair.first |> pair.first
-    let b_x = pairb |> pair.first |> pair.first
-
-    int.compare(a_x, b_x)
-  })
-  |> list.map(pair.second)
-  |> Ok
-}
-
-pub fn set_row(
-  display_buffer: DisplayBuffer,
-  y_coord: Int,
-  new_screen_row: List(Bool),
-) -> Result(DisplayBuffer, DisplayBufferError) {
-  use <- bool.guard(
-    when: y_coord < 0 || y_coord >= 32,
-    return: Error(TriedToAccessFakeRow(y_coord)),
-  )
-  let row_length = new_screen_row |> list.length
-  use <- bool.guard(
-    when: row_length != 64,
-    return: Error(IncorrectRowLength(row_length)),
-  )
-  let DisplayBuffer(map) = display_buffer
-
-  new_screen_row
-  |> list.index_fold(from: map, with: fn(map, value, x_coord) {
-    map |> dict.insert(for: #(x_coord, y_coord), insert: value)
-  })
-  |> DisplayBuffer
-  |> Ok
-}
-
 pub fn clear(_: DisplayBuffer) -> Result(DisplayBuffer, DisplayBufferError) {
   new()
 }
@@ -101,7 +54,8 @@ pub fn draw(
   let top_left_y = starting_y_coord % 32
 
   let sprite_rows =
-    create_sprite_buffer(sprite) |> handle_sprite_overflow(top_left_x)
+    create_sprite_buffer(sprite)
+    |> handle_sprite_overflow(top_left_x, top_left_y)
 
   use pair, sprite_row, y_offset <- list.index_fold(
     sprite_rows,
@@ -132,26 +86,44 @@ pub fn draw(
 fn handle_sprite_overflow(
   sprite: List(List(Bool)),
   top_left_x: Int,
+  top_left_y: Int,
 ) -> List(List(Bool)) {
-  sprite |> list.map(list.take(_, 64 - top_left_x))
+  sprite
+  |> list.map(list.take(_, 64 - top_left_x))
+  |> list.take(32 - top_left_y)
 }
 
 fn create_sprite_buffer(sprite: List(Int)) -> List(List(Bool)) {
-  let sprite_rows =
-    sprite
-    |> list.map(fn(num) {
-      num
-      |> int.to_base2
-      |> string.to_graphemes
-      |> list.map(fn(char) {
-        case char {
-          "0" -> False
-          "1" -> True
-          _ -> panic
-        }
-      })
-    })
-  sprite_rows
+  sprite
+  |> list.map(decompose_binary)
+  |> list.map(pad_to_eight)
+}
+
+fn pad_to_eight(list: List(Bool)) -> List(Bool) {
+  let length = list |> list.length
+  case length >= 8 {
+    True -> list
+    False -> list.repeat(False, 8 - length) |> list.append(list)
+  }
+}
+
+fn decompose_binary(x: Int) {
+  x |> do_decompose_binary |> list.reverse
+}
+
+fn do_decompose_binary(x: Int) -> List(Bool) {
+  use <- bool.guard(x == 0, [False])
+  use <- bool.guard(x == 1, [True])
+  case x % 2 == 0 {
+    True -> [
+      False,
+      ..do_decompose_binary(int.floor_divide(x, 2) |> result.unwrap(0))
+    ]
+    False -> [
+      True,
+      ..do_decompose_binary(int.floor_divide(x, 2) |> result.unwrap(0))
+    ]
+  }
 }
 
 fn set_pixel(

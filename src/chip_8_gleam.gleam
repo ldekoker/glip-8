@@ -13,7 +13,12 @@ import lustre/element/html
 import lustre/element/svg
 import lustre/event
 
-const roms = [ROM(roms.ibm_game, "IBM"), ROM(roms.windows, "Windows")]
+const roms = [
+  ROM(roms.ibm_game, "IBM"),
+  ROM(roms.windows, "Windows"),
+  ROM(roms.dots, "Dots"),
+  ROM(roms.tests, "Tests"),
+]
 
 const dimensions = #(64, 32)
 
@@ -82,7 +87,7 @@ fn load_rom(rom: ROM) -> Effect(Msg) {
 
 fn tick(cpu: cpu.CPU) -> Effect(Msg) {
   use dispatch <- effect.from
-  use <- set_timeout(1)
+  use <- set_timeout(1.0 /. 1000.0)
 
   dispatch(case cpu |> cpu.run {
     Ok(cpu) -> RomLoaded(cpu)
@@ -91,7 +96,7 @@ fn tick(cpu: cpu.CPU) -> Effect(Msg) {
 }
 
 @external(javascript, "./chip_8_gleam.ffi.mjs", "set_timeout")
-fn set_timeout(_delay: Int, _cb: fn() -> a) -> Nil {
+fn set_timeout(_delay: Float, _cb: fn() -> a) -> Nil {
   Nil
 }
 
