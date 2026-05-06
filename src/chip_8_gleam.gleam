@@ -89,7 +89,9 @@ fn tick(cpu: cpu.CPU) -> Effect(Msg) {
   use dispatch <- effect.from
   use <- set_timeout(1.0 /. 1000.0)
 
-  dispatch(case cpu |> cpu.run {
+  let cpu = int.range(0, 10, Ok(cpu), fn(cpu, _) { cpu |> result.try(cpu.run) })
+
+  dispatch(case cpu {
     Ok(cpu) -> RomLoaded(cpu)
     Error(error) -> CPUHadError(error)
   })
@@ -238,6 +240,7 @@ fn format_error(error: option.Option(cpu.CPUError)) -> element.Element(Msg) {
         cpu.PCValueUnderflow(value) ->
           "Program Counter Underflow " <> int.to_string(value)
         cpu.TimerUnderflow(value) -> "Timer Underflow " <> int.to_string(value)
+        cpu.TODO -> "Modulo issue."
       }
     option.None -> ""
   })

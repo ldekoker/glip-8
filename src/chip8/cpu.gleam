@@ -98,6 +98,7 @@ pub type CPUError {
   TriedToAccessFakeRegister(Int)
   PCValueUnderflow(Int)
   TimerUnderflow(Int)
+  TODO
 }
 
 fn from_display_buffer_error(
@@ -134,7 +135,7 @@ pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
     display_buffer.new() |> from_display_buffer_error,
   )
   let keypad = keypad.new()
-  let pc = 0
+  let pc = 0x200
   let stack = []
 
   CPU(
@@ -152,33 +153,22 @@ pub fn new(config: CPUConfig) -> Result(CPU, CPUError) {
   |> load_font(font_file.base_font)
 }
 
-pub fn load_rom(old_cpu: CPU, rom: List(Int)) {
+pub fn load_rom(cpu: CPU, rom: List(Int)) {
   let offset = 0x200
 
-  use new_cpu, index_value, index <- list.index_fold(rom, Ok(old_cpu))
-  new_cpu |> result.try(set_memory_at(_, index + offset, index_value))
-}
-
-pub fn run(cpu: CPU) -> Result(CPU, CPUError) {
-  let decode_instruction = fn(opcode) {
-    i.decode_instruction(opcode)
-    |> result.map_error(fn(err) {
-      case err {
-        i.InvalidOpcode(opcode:) -> DecodeError(opcode)
-      }
-    })
-  }
-
-  Ok(cpu)
-  |> result.try(fetch_instruction)
-  |> result.try(decode_instruction)
-  |> result.try(fn(instruction) {
-    use new_cpu <- result.try(cpu |> increment_pc(2))
-    apply_instruction(new_cpu, instruction)
+  list.index_fold(rom, Ok(cpu), fn(cpu, rom_at_index, index) {
+    cpu |> result.try(set_memory_at(_, index + offset, rom_at_index))
   })
 }
 
-fn fetch_instruction(cpu: CPU) -> Result(Int, CPUError) {
+pub fn run(cpu: CPU) -> Result(CPU, CPUError) {
+  use instruction <- result.try(fetch_and_decode_instruction(cpu))
+  use new_cpu <- result.try(cpu |> increment_pc(2))
+
+  new_cpu |> apply_instruction(instruction)
+}
+
+fn fetch_and_decode_instruction(cpu: CPU) -> Result(i.Instruction, CPUError) {
   use byte1 <- result.try(cpu |> get_memory_at(cpu.pc))
   use byte2 <- result.try(
     cpu
@@ -186,7 +176,14 @@ fn fetch_instruction(cpu: CPU) -> Result(Int, CPUError) {
   )
 
   // {byte1}{byte2}, e.g {0xA2}{0x03} = 0x{A203}
-  Ok(byte1 |> int.bitwise_shift_left(8) |> int.bitwise_or(byte2))
+  let opcode = byte1 |> int.bitwise_shift_left(8) |> int.bitwise_or(byte2)
+
+  i.decode_instruction(opcode)
+  |> result.map_error(fn(error) {
+    case error {
+      i.InvalidOpcode(opcode:) -> DecodeError(opcode)
+    }
+  })
 }
 
 pub fn apply_instruction(
@@ -256,7 +253,10 @@ pub fn apply_instruction(
       use val_at_vy <- result.try(cpu |> get_value_of_v(vy))
 
       let sum = val_at_vx + val_at_vy
-      let truncated_sum = sum % 256
+      use truncated_sum <- result.try(
+        int.modulo(sum, variable_registers_value_limit)
+        |> result.replace_error(FailedToSetV(vx)),
+      )
       let flag_value = case truncated_sum != sum {
         True -> 1
         False -> 0
@@ -583,13 +583,17 @@ fn config_to_flags(config: CPUConfig) -> CPUBehaviourFlags {
 // PC OPERATIONS ------------------------------------------------------
 
 fn set_pc(cpu: CPU, nnn: Int) -> Result(CPU, CPUError) {
-  let new_pc = nnn % pc_limit
+  use new_pc <- result.try(
+    nnn |> int.modulo(pc_limit) |> result.replace_error(TODO),
+  )
 
   Ok(CPU(..cpu, pc: new_pc))
 }
 
 fn increment_pc(cpu: CPU, by value: Int) -> Result(CPU, CPUError) {
-  let new_pc = { cpu.pc + value } % pc_limit
+  use new_pc <- result.try(
+    { cpu.pc + value } |> int.modulo(pc_limit) |> result.replace_error(TODO),
+  )
 
   CPU(..cpu, pc: new_pc) |> Ok
 }
@@ -601,7 +605,11 @@ fn get_address_register_value(cpu: CPU) -> Int {
 }
 
 fn set_address_register(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
-  let new_address_register = new_value % address_register_limit
+  use new_address_register <- result.try(
+    new_value
+    |> int.modulo(address_register_limit)
+    |> result.replace_error(TODO),
+  )
 
   Ok(CPU(..cpu, address_register: new_address_register))
 }
@@ -609,8 +617,16 @@ fn set_address_register(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
 // VARIABLE REGISTERS OPERATIONS --------------------------------------
 
 fn set_value_at_v(cpu: CPU, vx: Int, value: Int) -> Result(CPU, CPUError) {
-  let value = value % variable_registers_value_limit
-  let address = vx % variable_registers_address_limit
+  use value <- result.try(
+    value
+    |> int.modulo(variable_registers_value_limit)
+    |> result.replace_error(TODO),
+  )
+  use address <- result.try(
+    vx
+    |> int.modulo(variable_registers_address_limit)
+    |> result.replace_error(TODO),
+  )
   let new_variable_registers =
     cpu.variable_registers |> dict.insert(address, value)
 
@@ -618,9 +634,16 @@ fn set_value_at_v(cpu: CPU, vx: Int, value: Int) -> Result(CPU, CPUError) {
 }
 
 fn get_value_of_v(cpu: CPU, vx: Int) -> Result(Int, CPUError) {
+  use vx <- result.try(
+    vx
+    |> int.modulo(variable_registers_address_limit)
+    |> result.replace_error(TODO),
+  )
+
   cpu.variable_registers
-  |> dict.get(vx % variable_registers_address_limit)
-  |> result.replace_error(FailedToGetFromV(vx))
+  |> dict.get(vx)
+  |> result.unwrap(0)
+  |> Ok
 }
 
 // TIMER OPERATIONS ---------------------------------------------------
@@ -634,13 +657,17 @@ pub fn tick(cpu: CPU) -> Result(CPU, CPUError) {
 }
 
 fn set_delay_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
-  let new_timer = new_value % timer_limit
+  use new_timer <- result.try(
+    new_value |> int.modulo(timer_limit) |> result.replace_error(TODO),
+  )
 
   Ok(CPU(..cpu, delay_timer: new_timer))
 }
 
 fn set_sound_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
-  let new_timer = new_value % timer_limit
+  use new_timer <- result.try(
+    new_value |> int.modulo(timer_limit) |> result.replace_error(TODO),
+  )
 
   Ok(CPU(..cpu, sound_timer: new_timer))
 }
@@ -648,7 +675,10 @@ fn set_sound_timer(cpu: CPU, new_value: Int) -> Result(CPU, CPUError) {
 // STACK OPERATIONS ---------------------------------------------------
 
 pub fn stack_push(cpu: CPU, old_pc_value: Int) -> Result(CPU, CPUError) {
-  let new_stack = [old_pc_value % stack_limit, ..cpu.stack]
+  use new_top <- result.try(
+    old_pc_value |> int.modulo(stack_limit) |> result.replace_error(TODO),
+  )
+  let new_stack = [new_top, ..cpu.stack]
 
   CPU(..cpu, stack: new_stack) |> Ok
 }
@@ -674,8 +704,11 @@ fn is_key_pressed(cpu: CPU, key: Int) -> Result(Bool, CPUError) {
 // MEMORY OPERATIONS --------------------------------------------------
 
 fn get_memory_at(cpu: CPU, address address: Int) -> Result(Int, CPUError) {
+  use address <- result.try(
+    address |> int.modulo(memory_address_limit) |> result.replace_error(TODO),
+  )
   cpu.memory
-  |> dict.get(address % memory_address_limit)
+  |> dict.get(address)
   |> result.unwrap(0)
   |> Ok
 }
@@ -685,9 +718,15 @@ fn set_memory_at(
   address address: Int,
   to value: Int,
 ) -> Result(CPU, CPUError) {
+  use address <- result.try(
+    address |> int.modulo(memory_address_limit) |> result.replace_error(TODO),
+  )
+  use value <- result.try(
+    value |> int.modulo(memory_value_limit) |> result.replace_error(TODO),
+  )
   let new_memory =
     cpu.memory
-    |> dict.insert(address % memory_address_limit, value % memory_value_limit)
+    |> dict.insert(address, value)
 
   Ok(CPU(..cpu, memory: new_memory))
 }
@@ -697,10 +736,14 @@ fn set_memory_at(
 fn draw(cpu: CPU, vx: Int, vy: Int, n: Int) -> Result(CPU, CPUError) {
   let i = cpu |> get_address_register_value
   use starting_x_coord <- result.try(
-    cpu |> get_value_of_v(vx) |> result.map(fn(x) { x % 64 }),
+    cpu
+    |> get_value_of_v(vx)
+    |> result.try(fn(x) { x |> int.modulo(64) |> result.replace_error(TODO) }),
   )
   use starting_y_coord <- result.try(
-    cpu |> get_value_of_v(vy) |> result.map(fn(y) { y % 32 }),
+    cpu
+    |> get_value_of_v(vy)
+    |> result.try(fn(y) { y |> int.modulo(32) |> result.replace_error(TODO) }),
   )
 
   let ending_y_coord = int.min(starting_y_coord + n, 32)
@@ -749,10 +792,10 @@ pub fn extract_display(cpu: CPU) -> Result(List(List(Bool)), Nil) {
 
 pub fn split(num: Int) -> Result(#(Int, Int, Int), Nil) {
   use <- bool.guard(when: num < 0, return: Error(Nil))
-  let num = num % 1000
-  let hundreds = { num % 1000 } / 100
+  use num <- result.try(num |> int.modulo(1000))
+  let hundreds = { num } / 100
   let tens = { num - { hundreds * 100 } } / 10
-  let ones = num % 10
+  use ones <- result.try(num |> int.modulo(10))
 
   Ok(#(hundreds, tens, ones))
 }
